@@ -1,6 +1,6 @@
 module github.com/omkhar/minecraft-ping
 
-go 1.22.4
+go 1.23
 
 require (
 	github.com/iverly/go-mcping v1.0.1 // indirect
