@@ -43,7 +43,8 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Run govulncheck
-        run: "$(go env GOPATH)/bin/govulncheck" ./...
+        run: |
+          "$(go env GOPATH)/bin/govulncheck" ./...
 
   gosec:
     runs-on: ubuntu-latest
@@ -60,7 +61,8 @@ jobs:
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
 
       - name: Run gosec
-        run: "$(go env GOPATH)/bin/gosec" ./...
+        run: |
+          "$(go env GOPATH)/bin/gosec" ./...
 
   fuzz-packet-parsers:
     runs-on: ubuntu-latest
