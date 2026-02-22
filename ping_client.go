@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -21,14 +22,53 @@ const (
 	maxPacketLength          = 2 * 1024 * 1024
 	maxStatusJSONLength      = 1 * 1024 * 1024
 	maxHandshakeHostByteSize = 255
+	maxServerAddressLength   = 253
+	maxAllowedTimeout        = 30 * time.Second
 )
 
 var errVarIntTooLong = errors.New("varint is too long")
 
+type pingOptions struct {
+	allowPrivateAddresses bool
+}
+
+var nonPublicIPPrefixes = []netip.Prefix{
+	mustParsePrefix("0.0.0.0/8"),
+	mustParsePrefix("10.0.0.0/8"),
+	mustParsePrefix("100.64.0.0/10"),
+	mustParsePrefix("127.0.0.0/8"),
+	mustParsePrefix("169.254.0.0/16"),
+	mustParsePrefix("172.16.0.0/12"),
+	mustParsePrefix("192.0.0.0/24"),
+	mustParsePrefix("192.0.2.0/24"),
+	mustParsePrefix("192.168.0.0/16"),
+	mustParsePrefix("198.18.0.0/15"),
+	mustParsePrefix("198.51.100.0/24"),
+	mustParsePrefix("203.0.113.0/24"),
+	mustParsePrefix("224.0.0.0/4"),
+	mustParsePrefix("240.0.0.0/4"),
+	mustParsePrefix("::/128"),
+	mustParsePrefix("::1/128"),
+	mustParsePrefix("100::/64"),
+	mustParsePrefix("2001:db8::/32"),
+	mustParsePrefix("fc00::/7"),
+	mustParsePrefix("fe80::/10"),
+	mustParsePrefix("ff00::/8"),
+}
+
 func pingServer(server string, port int, timeout time.Duration) (int, error) {
+	return pingServerWithOptions(server, port, timeout, pingOptions{
+		allowPrivateAddresses: true,
+	})
+}
+
+func pingServerWithOptions(server string, port int, timeout time.Duration, options pingOptions) (int, error) {
 	server = strings.TrimSpace(server)
 	if server == "" {
 		return 0, errors.New("server must not be empty")
+	}
+	if err := validateServerAddress(server); err != nil {
+		return 0, err
 	}
 	if port < 1 || port > 65535 {
 		return 0, fmt.Errorf("invalid port: %d. port must be between 1 and 65535", port)
@@ -36,10 +76,13 @@ func pingServer(server string, port int, timeout time.Duration) (int, error) {
 	if timeout <= 0 {
 		return 0, fmt.Errorf("invalid timeout: %s. timeout must be greater than 0", timeout)
 	}
+	if timeout > maxAllowedTimeout {
+		return 0, fmt.Errorf("invalid timeout: %s. timeout must be less than or equal to %s", timeout, maxAllowedTimeout)
+	}
 
 	resolvedHost, resolvedPort := resolveMinecraftEndpoint(server, port, timeout)
 
-	latency, err := pingMinecraftServer(resolvedHost, resolvedPort, timeout)
+	latency, err := pingMinecraftServer(resolvedHost, resolvedPort, server, timeout, options.allowPrivateAddresses)
 	if err != nil {
 		if resolvedHost != server || resolvedPort != port {
 			return 0, fmt.Errorf(
@@ -78,9 +121,8 @@ func resolveMinecraftEndpoint(server string, port int, timeout time.Duration) (s
 	return target, int(records[0].Port)
 }
 
-func pingMinecraftServer(server string, port int, timeout time.Duration) (int, error) {
-	dialer := &net.Dialer{Timeout: timeout}
-	conn, err := dialer.Dial("tcp", net.JoinHostPort(server, strconv.Itoa(port)))
+func pingMinecraftServer(server string, port int, handshakeHost string, timeout time.Duration, allowPrivateAddresses bool) (int, error) {
+	conn, err := dialMinecraftTCP(server, port, timeout, allowPrivateAddresses)
 	if err != nil {
 		return 0, err
 	}
@@ -90,7 +132,7 @@ func pingMinecraftServer(server string, port int, timeout time.Duration) (int, e
 		return 0, err
 	}
 
-	if err := sendHandshakePacket(conn, server, uint16(port)); err != nil {
+	if err := sendHandshakePacket(conn, handshakeHost, uint16(port)); err != nil {
 		return 0, err
 	}
 	if err := sendStatusRequestPacket(conn); err != nil {
@@ -116,6 +158,106 @@ func pingMinecraftServer(server string, port int, timeout time.Duration) (int, e
 	}
 
 	return latencyMs, nil
+}
+
+func validateServerAddress(server string) error {
+	if len(server) > maxServerAddressLength {
+		return fmt.Errorf("server must not exceed %d bytes", maxServerAddressLength)
+	}
+
+	for _, r := range server {
+		if r <= 0x1F || r == 0x7F {
+			return errors.New("server contains control characters")
+		}
+	}
+
+	return nil
+}
+
+func dialMinecraftTCP(server string, port int, timeout time.Duration, allowPrivateAddresses bool) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	join := func(host string) string {
+		return net.JoinHostPort(host, strconv.Itoa(port))
+	}
+
+	dialer := &net.Dialer{}
+
+	if parsedIP := net.ParseIP(server); parsedIP != nil {
+		if !allowPrivateAddresses && isNonPublicIPAddress(parsedIP) {
+			return nil, fmt.Errorf("refusing to connect to non-public address %s", parsedIP.String())
+		}
+		return dialer.DialContext(ctx, "tcp", join(parsedIP.String()))
+	}
+
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", server)
+	if err != nil {
+		return nil, err
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no addresses resolved for %s", server)
+	}
+
+	type candidate struct {
+		addr string
+	}
+	candidates := make([]candidate, 0, len(ips))
+	for _, ip := range ips {
+		ipString := ip.String()
+		if ipString == "" {
+			continue
+		}
+		if !allowPrivateAddresses && isNonPublicIPAddress(ip) {
+			continue
+		}
+		candidates = append(candidates, candidate{addr: join(ipString)})
+	}
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("resolved only to non-public addresses for %s", server)
+	}
+
+	var lastErr error
+	for _, candidate := range candidates {
+		conn, dialErr := dialer.DialContext(ctx, "tcp", candidate.addr)
+		if dialErr == nil {
+			return conn, nil
+		}
+		lastErr = dialErr
+		if ctx.Err() != nil {
+			break
+		}
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+
+	return nil, errors.New("failed to dial any resolved address")
+}
+
+func isNonPublicIPAddress(ip net.IP) bool {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return true
+	}
+
+	addr = addr.Unmap()
+	for _, prefix := range nonPublicIPPrefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func mustParsePrefix(raw string) netip.Prefix {
+	prefix, err := netip.ParsePrefix(raw)
+	if err != nil {
+		panic(fmt.Sprintf("invalid IP prefix %q: %v", raw, err))
+	}
+	return prefix
 }
 
 func sendHandshakePacket(w io.Writer, host string, port uint16) error {

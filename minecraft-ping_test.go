@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -206,6 +207,56 @@ func TestReadStringFromBytesRejectsOversizedPayload(t *testing.T) {
 	_, _, err := readStringFromBytes(payload.Bytes(), len(raw)-1)
 	if err == nil {
 		t.Fatal("readStringFromBytes() expected oversized payload error but got nil")
+	}
+}
+
+func TestPingServerWithOptionsRejectsPrivateAddressByDefault(t *testing.T) {
+	_, err := pingServerWithOptions("127.0.0.1", 25565, 2*time.Second, pingOptions{
+		allowPrivateAddresses: false,
+	})
+	if err == nil {
+		t.Fatal("pingServerWithOptions() expected private address rejection but got nil")
+	}
+	if !strings.Contains(err.Error(), "non-public address") {
+		t.Fatalf("pingServerWithOptions() error = %q, expected non-public address rejection", err.Error())
+	}
+}
+
+func TestPingServerWithOptionsAllowsPrivateAddressWhenEnabled(t *testing.T) {
+	host, port, wait := startTCPTestServer(
+		t,
+		mockStatusPongHandler(`{"version":{"name":"1.20.6","protocol":766},"players":{"max":1000,"online":42},"description":"ok"}`, 10*time.Millisecond),
+	)
+	defer wait()
+
+	latency, err := pingServerWithOptions(host, port, 2*time.Second, pingOptions{
+		allowPrivateAddresses: true,
+	})
+	if err != nil {
+		t.Fatalf("pingServerWithOptions() unexpected error: %v", err)
+	}
+	if latency <= 0 {
+		t.Fatalf("pingServerWithOptions() got invalid latency: %d", latency)
+	}
+}
+
+func TestPingServerRejectsExcessiveTimeout(t *testing.T) {
+	_, err := pingServer("127.0.0.1", 25565, maxAllowedTimeout+time.Second)
+	if err == nil {
+		t.Fatal("pingServer() expected timeout bounds error but got nil")
+	}
+	if !strings.Contains(err.Error(), "less than or equal") {
+		t.Fatalf("pingServer() error = %q, expected timeout bounds message", err.Error())
+	}
+}
+
+func TestPingServerRejectsControlCharacterInHost(t *testing.T) {
+	_, err := pingServer("exa\nmple.com", 25565, 2*time.Second)
+	if err == nil {
+		t.Fatal("pingServer() expected host validation error but got nil")
+	}
+	if !strings.Contains(err.Error(), "control characters") {
+		t.Fatalf("pingServer() error = %q, expected control-character message", err.Error())
 	}
 }
 
