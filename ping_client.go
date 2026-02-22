@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/netip"
 	"strconv"
@@ -132,7 +134,12 @@ func pingMinecraftServer(server string, port int, handshakeHost string, timeout 
 		return 0, err
 	}
 
-	if err := sendHandshakePacket(conn, handshakeHost, uint16(port)); err != nil {
+	handshakePort, err := toUint16(port)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := sendHandshakePacket(conn, handshakeHost, handshakePort); err != nil {
 		return 0, err
 	}
 	if err := sendStatusRequestPacket(conn); err != nil {
@@ -142,7 +149,10 @@ func pingMinecraftServer(server string, port int, handshakeHost string, timeout 
 		return 0, err
 	}
 
-	token := time.Now().UnixNano()
+	token, err := generatePingToken()
+	if err != nil {
+		return 0, err
+	}
 	start := time.Now()
 
 	if err := sendPingPacket(conn, token); err != nil {
@@ -260,6 +270,21 @@ func mustParsePrefix(raw string) netip.Prefix {
 	return prefix
 }
 
+func toUint16(value int) (uint16, error) {
+	if value < 0 || value > math.MaxUint16 {
+		return 0, fmt.Errorf("value %d is out of uint16 range", value)
+	}
+	return uint16(value), nil // #nosec G115 -- guarded by explicit bounds check above
+}
+
+func generatePingToken() (uint64, error) {
+	var payload [8]byte
+	if _, err := rand.Read(payload[:]); err != nil {
+		return 0, fmt.Errorf("failed to generate ping token: %w", err)
+	}
+	return binary.BigEndian.Uint64(payload[:]), nil
+}
+
 func sendHandshakePacket(w io.Writer, host string, port uint16) error {
 	var payload bytes.Buffer
 
@@ -281,13 +306,13 @@ func sendStatusRequestPacket(w io.Writer) error {
 	return writePacket(w, []byte{0x00})
 }
 
-func sendPingPacket(w io.Writer, payloadValue int64) error {
+func sendPingPacket(w io.Writer, payloadValue uint64) error {
 	var payload bytes.Buffer
 
 	writeVarInt(&payload, 0x01)
 
 	var token [8]byte
-	binary.BigEndian.PutUint64(token[:], uint64(payloadValue))
+	binary.BigEndian.PutUint64(token[:], payloadValue)
 	payload.Write(token[:])
 
 	return writePacket(w, payload.Bytes())
@@ -321,7 +346,7 @@ func readStatusResponse(r io.Reader) error {
 	return nil
 }
 
-func readPongPacket(r io.Reader, expected int64) error {
+func readPongPacket(r io.Reader, expected uint64) error {
 	payload, err := readPacket(r, maxPacketLength)
 	if err != nil {
 		return err
@@ -339,7 +364,7 @@ func readPongPacket(r io.Reader, expected int64) error {
 		return errors.New("invalid pong payload size")
 	}
 
-	received := int64(binary.BigEndian.Uint64(payload[consumed:]))
+	received := binary.BigEndian.Uint64(payload[consumed:])
 	if received != expected {
 		return errors.New("pong payload mismatch")
 	}
@@ -354,9 +379,12 @@ func writePacket(w io.Writer, payload []byte) error {
 	if len(payload) > maxPacketLength {
 		return fmt.Errorf("packet payload exceeds maximum size: %d", len(payload))
 	}
+	if len(payload) > math.MaxInt32 {
+		return fmt.Errorf("packet payload exceeds int32 max: %d", len(payload))
+	}
 
 	var packet bytes.Buffer
-	writeVarInt(&packet, int32(len(payload)))
+	writeVarInt(&packet, int32(len(payload))) // #nosec G115 -- bounded by MaxInt32 check above
 	packet.Write(payload)
 
 	_, err := w.Write(packet.Bytes())
@@ -371,7 +399,7 @@ func readPacket(r io.Reader, maxLength int) ([]byte, error) {
 	if packetLength <= 0 {
 		return nil, fmt.Errorf("invalid packet length: %d", packetLength)
 	}
-	if packetLength > int32(maxLength) {
+	if int64(packetLength) > int64(maxLength) {
 		return nil, fmt.Errorf("packet length %d exceeds limit %d", packetLength, maxLength)
 	}
 
@@ -410,13 +438,13 @@ func readVarInt(r io.Reader) (int32, error) {
 }
 
 func writeVarInt(buf *bytes.Buffer, value int32) {
-	unsigned := uint32(value)
+	unsigned := uint32(value) // #nosec G115 -- two's-complement reinterpretation required by MC VarInt encoding
 	for {
 		if unsigned&^uint32(0x7F) == 0 {
-			buf.WriteByte(byte(unsigned))
+			buf.WriteByte(byte(unsigned)) // #nosec G115 -- value is masked to one byte by condition above
 			return
 		}
-		buf.WriteByte(byte(unsigned&0x7F | 0x80))
+		buf.WriteByte(byte(unsigned&0x7F | 0x80)) // #nosec G115 -- low 8 bits are intentionally serialized
 		unsigned >>= 7
 	}
 }
@@ -435,8 +463,11 @@ func writeString(buf *bytes.Buffer, value string, maxBytes int) error {
 	if len(raw) > maxBytes {
 		return fmt.Errorf("string size %d exceeds max of %d bytes", len(raw), maxBytes)
 	}
+	if len(raw) > math.MaxInt32 {
+		return fmt.Errorf("string size %d exceeds int32 max", len(raw))
+	}
 
-	writeVarInt(buf, int32(len(raw)))
+	writeVarInt(buf, int32(len(raw))) // #nosec G115 -- bounded by MaxInt32 check above
 	_, err := buf.Write(raw)
 	return err
 }
