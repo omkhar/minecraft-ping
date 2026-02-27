@@ -26,6 +26,14 @@ const (
 	maxHandshakeHostByteSize = 255
 	maxServerAddressLength   = 253
 	maxAllowedTimeout        = 30 * time.Second
+
+	// Minecraft Java Edition protocol packet IDs (context-dependent by state).
+	packetIDHandshake      int32 = 0x00
+	nextStateStatus        int32 = 0x01
+	packetIDStatusRequest  byte  = 0x00
+	packetIDStatusResponse int32 = 0x00
+	packetIDPing           int32 = 0x01
+	packetIDPong           int32 = 0x01
 )
 
 var errVarIntTooLong = errors.New("varint is too long")
@@ -288,7 +296,7 @@ func generatePingToken() (uint64, error) {
 func sendHandshakePacket(w io.Writer, host string, port uint16) error {
 	var payload bytes.Buffer
 
-	writeVarInt(&payload, 0x00) // Handshake packet ID.
+	writeVarInt(&payload, packetIDHandshake)
 	writeVarInt(&payload, statusProtocolVersion)
 	if err := writeString(&payload, host, maxHandshakeHostByteSize); err != nil {
 		return err
@@ -298,18 +306,18 @@ func sendHandshakePacket(w io.Writer, host string, port uint16) error {
 	binary.BigEndian.PutUint16(portBytes[:], port)
 	payload.Write(portBytes[:])
 
-	writeVarInt(&payload, 0x01) // Next state: status.
+	writeVarInt(&payload, nextStateStatus)
 	return writePacket(w, payload.Bytes())
 }
 
 func sendStatusRequestPacket(w io.Writer) error {
-	return writePacket(w, []byte{0x00})
+	return writePacket(w, []byte{packetIDStatusRequest})
 }
 
 func sendPingPacket(w io.Writer, payloadValue uint64) error {
 	var payload bytes.Buffer
 
-	writeVarInt(&payload, 0x01)
+	writeVarInt(&payload, packetIDPing)
 
 	var token [8]byte
 	binary.BigEndian.PutUint64(token[:], payloadValue)
@@ -328,7 +336,7 @@ func readStatusResponse(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if packetID != 0x00 {
+	if packetID != packetIDStatusResponse {
 		return fmt.Errorf("unexpected status packet id: %d", packetID)
 	}
 
@@ -356,7 +364,7 @@ func readPongPacket(r io.Reader, expected uint64) error {
 	if err != nil {
 		return err
 	}
-	if packetID != 0x01 {
+	if packetID != packetIDPong {
 		return fmt.Errorf("unexpected pong packet id: %d", packetID)
 	}
 
