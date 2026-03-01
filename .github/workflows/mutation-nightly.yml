@@ -32,7 +32,7 @@ jobs:
           key: go-mutesting-${{ runner.os }}-${{ env.GO_MUTESTING_VERSION }}
       - name: Install go-mutesting
         if: steps.go-mutesting-cache.outputs.cache-hit != 'true'
-        run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@${{ env.GO_MUTESTING_VERSION }}
+        run: GOTOOLCHAIN=auto go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@${{ env.GO_MUTESTING_VERSION }}
       - name: Run full mutation suite
         run: |
           "$(go env GOPATH)/bin/go-mutesting" --config .go-mutesting.yml ./...
