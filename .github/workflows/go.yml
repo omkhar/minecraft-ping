@@ -15,6 +15,7 @@ env:
   GOVULNCHECK_VERSION: v1.1.4
   GOSEC_VERSION: v2.24.0
   GO_MUTESTING_VERSION: v0.0.0-20251226130216-48d0401f00fb
+  GOTOOLCHAIN: auto
   STAGING_USER_AGENT: "Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
 
 jobs:
