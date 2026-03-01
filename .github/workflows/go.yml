@@ -91,7 +91,7 @@ jobs:
     needs: deploy-staging
     runs-on: ubuntu-latest
     env:
-      USER_AGENT: "Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+      USER_AGENT: ${{ env.STAGING_USER_AGENT }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up Go
