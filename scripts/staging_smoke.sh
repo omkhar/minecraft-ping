@@ -2,7 +2,7 @@
 set -euo pipefail
 
 USER_AGENT="${USER_AGENT:-Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36}"
-IMAGE="${MINECRAFT_STAGING_IMAGE:-itzg/minecraft-server:latest}"
+IMAGE="${MINECRAFT_STAGING_IMAGE:-minecraft-staging-image:ci}"
 PORT="${MINECRAFT_STAGING_PORT:-25565}"
 
 cleanup() {

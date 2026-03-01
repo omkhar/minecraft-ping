@@ -1,0 +1,1 @@
+FROM itzg/minecraft-server:latest@sha256:cce41161e946a6a34ee6993b093bf3ed9a3942bd6b2fcf24d9d2797941884b4e

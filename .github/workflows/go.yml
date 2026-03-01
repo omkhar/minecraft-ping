@@ -66,8 +66,8 @@ jobs:
     needs: ci-build
     runs-on: ubuntu-latest
     steps:
-      - name: Pull staging-equivalent container image
-        run: docker pull itzg/minecraft-server:latest
+      - name: Build pinned staging-equivalent container image
+        run: docker build -f docker/staging-minecraft.Dockerfile -t minecraft-staging-image:ci .
 
   ci-test:
     name: ci-test
@@ -98,7 +98,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Build pinned staging-equivalent container image
+        run: docker build -f docker/staging-minecraft.Dockerfile -t minecraft-staging-image:ci .
+
       - name: Run staging-equivalent smoke
+        env:
+          MINECRAFT_STAGING_IMAGE: minecraft-staging-image:ci
         run: scripts/staging_smoke.sh
 
   ci-mutation-pr:
