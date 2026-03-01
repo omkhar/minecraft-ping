@@ -13,7 +13,7 @@ Go CLI tool that measures latency to a Minecraft Java Edition server (protocol v
 go build -v ./...
 
 # Run
-./minecraft-ping -server mc.example.com [-port 25565] [-timeout 5s] [-allow-private]
+./minecraft-ping -server mc.example.com [-port 25565] [-timeout 5s] [-allow-private] [-format text|json]
 
 # Unit tests
 go test -v ./...
@@ -26,7 +26,7 @@ go test ./... -run=^$ -fuzz=FuzzReadPacket -fuzztime=30s
 
 ## Architecture
 
-- `minecraft-ping.go` — CLI entry point; flags: `-server`, `-port`, `-timeout`, `-allow-private`
+- `minecraft-ping.go` — CLI entry point; flags: `-server`, `-port`, `-timeout`, `-allow-private`, `-format` (`text` default or `json`); JSON output: `{"server":"...","latency_ms":N}`
 - `ping_client.go` — core protocol logic (~500 lines): TCP connection, SRV lookup, VarInt encode/decode, packet serialization/deserialization, private address CIDR filtering
 - `minecraft-ping_test.go` — unit tests with mock TCP server
 - `ping_fuzz_test.go` — three fuzz targets for binary parser robustness
@@ -37,4 +37,4 @@ go test ./... -run=^$ -fuzz=FuzzReadPacket -fuzztime=30s
 
 - **Maintainability**: Magic packet IDs (`0x00`, `0x01`) should be named constants — e.g. `packetIDHandshake`, `packetIDPing`, `nextStateStatus`
 - **Maintainability**: No debug logging — consider a `-debug` flag for protocol-level tracing
-- **Idiomatic**: Output is human-only (`"Ping time is 123"`) — optionally support `-format=json` for monitoring integration
+- ~~**Idiomatic**: Output is human-only. Fixed: text output now includes `ms` unit; `-format=json` flag added for monitoring integration.~~
