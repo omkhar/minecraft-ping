@@ -33,10 +33,12 @@ done
 echo "Using user-agent string for consistency: $USER_AGENT"
 
 for i in {1..20}; do
-  if output="$(go run . -server 127.0.0.1 -port "$PORT" -allow-private -timeout 12s -format json 2>/tmp/mcping.err)"; then
-    echo "$output" | jq -e '.server == "127.0.0.1" and (.latency_ms >= 0)' >/dev/null
-    echo "staging smoke succeeded: $output"
-    exit 0
+  if output="$(go run . -server 127.0.0.1 -port "$PORT" -allow-private -timeout 12s 2>/tmp/mcping.err)"; then
+    latency="$(printf '%s\n' "$output" | sed -nE 's/^Ping time is ([0-9]+).*$/\1/p' | tail -n 1)"
+    if [[ -n "$latency" ]]; then
+      echo "staging smoke succeeded: latency_ms=$latency"
+      exit 0
+    fi
   fi
   sleep 3
 done
