@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GO_MUTESTING_VERSION: v0.0.0-20251226130216-48d0401f00fb
+
 jobs:
   mutation-nightly:
     name: mutation-nightly
@@ -20,8 +23,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Cache go-mutesting binary
+        id: go-mutesting-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/go/bin/go-mutesting
+          key: go-mutesting-${{ runner.os }}-${{ env.GO_MUTESTING_VERSION }}
       - name: Install go-mutesting
-        run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20251226130216-48d0401f00fb
+        if: steps.go-mutesting-cache.outputs.cache-hit != 'true'
+        run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@${{ env.GO_MUTESTING_VERSION }}
       - name: Run full mutation suite
         run: |
           "$(go env GOPATH)/bin/go-mutesting" --config .go-mutesting.yml ./...
