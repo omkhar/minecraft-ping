@@ -66,6 +66,7 @@ jobs:
     needs: ci-build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build pinned staging-equivalent container image
         run: docker build -f docker/staging-minecraft.Dockerfile -t minecraft-staging-image:ci .
 
