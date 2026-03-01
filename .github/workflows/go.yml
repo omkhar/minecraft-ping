@@ -112,7 +112,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Install go-mutesting
-        run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20251226130216-48d0401f00fb
+        run: GOTOOLCHAIN=auto go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20251226130216-48d0401f00fb
       - name: Run diff-scoped mutation tests
         run: scripts/run_mutation_pr.sh
 
