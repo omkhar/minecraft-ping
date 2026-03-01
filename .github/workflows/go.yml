@@ -14,6 +14,7 @@ permissions:
 env:
   GOVULNCHECK_VERSION: v1.1.4
   GOSEC_VERSION: v2.24.0
+  GO_MUTESTING_VERSION: v0.0.0-20251226130216-48d0401f00fb
   STAGING_USER_AGENT: "Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
 
 jobs:
@@ -31,7 +32,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/go/bin
-          key: go-tools-security-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}
+          key: go-tools-security-${{ runner.os }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}
+          restore-keys: |
+            go-tools-security-${{ runner.os }}-
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
       - name: Run govulncheck
@@ -111,8 +114,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Cache go-mutesting binary
+        id: go-mutesting-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/go/bin/go-mutesting
+          key: go-mutesting-${{ runner.os }}-${{ env.GO_MUTESTING_VERSION }}
       - name: Install go-mutesting
-        run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20251226130216-48d0401f00fb
+        if: steps.go-mutesting-cache.outputs.cache-hit != 'true'
+        run: go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@${{ env.GO_MUTESTING_VERSION }}
       - name: Run diff-scoped mutation tests
         run: scripts/run_mutation_pr.sh
 
