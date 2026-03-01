@@ -10,6 +10,7 @@ permissions:
 
 env:
   GO_MUTESTING_VERSION: v0.0.0-20251226130216-48d0401f00fb
+  GOTOOLCHAIN: auto
 
 jobs:
   mutation-nightly:
