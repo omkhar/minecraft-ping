@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 env:
   GOVULNCHECK_VERSION: v1.1.4
