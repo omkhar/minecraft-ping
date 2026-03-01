@@ -277,3 +277,38 @@ func TestExecuteFailureWritesError(t *testing.T) {
 		t.Fatalf("execute() stderr = %q, expected format validation message", stderr.String())
 	}
 }
+
+func TestExecuteDoesNotCreateLogFile(t *testing.T) {
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error: %v", err)
+	}
+
+	workDir := t.TempDir()
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("os.Chdir(%q) error: %v", workDir, err)
+	}
+	defer func() {
+		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
+			t.Fatalf("restore working directory error: %v", chdirErr)
+		}
+	}()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	rc := execute(
+		[]string{"minecraft-ping", "-server", "mc.example.com"},
+		&stdout,
+		&stderr,
+		func(string, int, time.Duration, pingOptions) (int, error) {
+			return 5, nil
+		},
+	)
+	if rc != 0 {
+		t.Fatalf("execute() rc = %d, want 0", rc)
+	}
+
+	if _, err := os.Stat("mcping.log"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("mcping.log should not be created, got stat err=%v", err)
+	}
+}
