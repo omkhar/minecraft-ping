@@ -72,7 +72,9 @@ func TestPingServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			latency, err := pingServer(tt.server, tt.port, tt.timeout)
+			latency, err := pingServerWithOptions(tt.server, tt.port, tt.timeout, pingOptions{
+				allowPrivateAddresses: true,
+			})
 
 			if tt.wantErr {
 				if err == nil {
@@ -111,7 +113,9 @@ func TestPingServerMalformedStatusPacket(t *testing.T) {
 	})
 	defer wait()
 
-	_, err := pingServer(host, port, 2*time.Second)
+	_, err := pingServerWithOptions(host, port, 2*time.Second, pingOptions{
+		allowPrivateAddresses: true,
+	})
 	if err == nil {
 		t.Fatal("pingServer() expected malformed status packet error but got nil")
 	}
@@ -162,9 +166,21 @@ func TestPingServerPongMismatch(t *testing.T) {
 	})
 	defer wait()
 
-	_, err := pingServer(host, port, 2*time.Second)
+	_, err := pingServerWithOptions(host, port, 2*time.Second, pingOptions{
+		allowPrivateAddresses: true,
+	})
 	if err == nil {
 		t.Fatal("pingServer() expected pong mismatch error but got nil")
+	}
+}
+
+func TestPingServerRejectsPrivateAddressByDefault(t *testing.T) {
+	_, err := pingServer("127.0.0.1", 25565, 2*time.Second)
+	if err == nil {
+		t.Fatal("pingServer() expected private address rejection but got nil")
+	}
+	if !strings.Contains(err.Error(), "non-public address") {
+		t.Fatalf("pingServer() error = %q, expected non-public address rejection", err.Error())
 	}
 }
 

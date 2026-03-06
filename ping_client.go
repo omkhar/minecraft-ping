@@ -68,7 +68,7 @@ var nonPublicIPPrefixes = []netip.Prefix{
 
 func pingServer(server string, port int, timeout time.Duration) (int, error) {
 	return pingServerWithOptions(server, port, timeout, pingOptions{
-		allowPrivateAddresses: true,
+		allowPrivateAddresses: false,
 	})
 }
 
