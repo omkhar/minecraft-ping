@@ -2,69 +2,63 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
+const validStatusJSON = `{"version":{"name":"1.20.6","protocol":766},"players":{"max":1000,"online":42},"description":"ok"}`
+
 func TestPingServer(t *testing.T) {
-	host, port, wait := startTCPTestServer(
-		t,
-		mockStatusPongHandler(`{"version":{"name":"1.20.6","protocol":766},"players":{"max":1000,"online":42},"description":"ok"}`, 15*time.Millisecond),
-	)
-	defer wait()
+	server := startFakeMinecraftServer(t, statusPongScript(validStatusJSON, 15*time.Millisecond))
+	defer server.Close()
 
 	tests := []struct {
 		name    string
-		server  string
-		port    int
+		target  endpoint
 		timeout time.Duration
 		wantErr bool
 	}{
 		{
 			name:    "Valid server and port",
-			server:  host,
-			port:    port,
+			target:  server.Endpoint(),
 			timeout: 5 * time.Second,
 			wantErr: false,
 		},
 		{
 			name:    "Invalid port - too low",
-			server:  host,
-			port:    0,
+			target:  newEndpoint(server.Endpoint().Host, 0),
 			timeout: 5 * time.Second,
 			wantErr: true,
 		},
 		{
 			name:    "Invalid port - too high",
-			server:  host,
-			port:    65536,
+			target:  newEndpoint(server.Endpoint().Host, 65536),
 			timeout: 5 * time.Second,
 			wantErr: true,
 		},
 		{
 			name:    "Invalid server",
-			server:  "203.0.113.1",
-			port:    25565,
+			target:  newEndpoint("203.0.113.1", defaultMinecraftPort),
 			timeout: 250 * time.Millisecond,
 			wantErr: true,
 		},
 		{
 			name:    "Invalid timeout",
-			server:  host,
-			port:    port,
+			target:  server.Endpoint(),
 			timeout: -1 * time.Second,
 			wantErr: true,
 		},
 		{
 			name:    "Invalid timeout zero",
-			server:  host,
-			port:    port,
+			target:  server.Endpoint(),
 			timeout: 0,
 			wantErr: true,
 		},
@@ -72,34 +66,34 @@ func TestPingServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			latency, err := pingServerWithOptions(tt.server, tt.port, tt.timeout, pingOptions{
+			latency, err := pingEndpointWithOptions(tt.target, tt.timeout, pingOptions{
 				allowPrivateAddresses: true,
 			})
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("pingServer() expected error but got none")
+					t.Errorf("pingEndpointWithOptions() expected error but got none")
 				}
 				return
 			}
 
 			if err != nil {
-				t.Fatalf("pingServer() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("pingEndpointWithOptions() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if latency <= 0 {
-				t.Fatalf("pingServer() got invalid latency: %d", latency)
+				t.Fatalf("pingEndpointWithOptions() got invalid latency: %d", latency)
 			}
 		})
 	}
 }
 
 func TestPingServerMalformedStatusPacket(t *testing.T) {
-	host, port, wait := startTCPTestServer(t, func(conn net.Conn) error {
-		if err := conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+	server := startFakeMinecraftServer(t, func(conn *fakeMinecraftConn) error {
+		if err := conn.SetDeadline(2 * time.Second); err != nil {
 			return err
 		}
 
-		if err := readHandshakeAndStatusRequest(conn); err != nil {
+		if _, err := conn.ExpectStatusHandshake(); err != nil {
 			return err
 		}
 
@@ -109,73 +103,50 @@ func TestPingServerMalformedStatusPacket(t *testing.T) {
 			return err
 		}
 
-		return writePacket(conn, malformed.Bytes())
+		return conn.SendPacket(malformed.Bytes())
 	})
-	defer wait()
+	defer server.Close()
 
-	_, err := pingServerWithOptions(host, port, 2*time.Second, pingOptions{
+	_, err := pingEndpointWithOptions(server.Endpoint(), 2*time.Second, pingOptions{
 		allowPrivateAddresses: true,
 	})
 	if err == nil {
-		t.Fatal("pingServer() expected malformed status packet error but got nil")
+		t.Fatal("pingEndpointWithOptions() expected malformed status packet error but got nil")
 	}
 }
 
 func TestPingServerPongMismatch(t *testing.T) {
-	host, port, wait := startTCPTestServer(t, func(conn net.Conn) error {
-		if err := conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+	server := startFakeMinecraftServer(t, func(conn *fakeMinecraftConn) error {
+		if err := conn.SetDeadline(2 * time.Second); err != nil {
 			return err
 		}
 
-		if err := readHandshakeAndStatusRequest(conn); err != nil {
+		if _, err := conn.ExpectStatusHandshake(); err != nil {
+			return err
+		}
+		if err := conn.SendStatusJSON(validStatusJSON); err != nil {
 			return err
 		}
 
-		var status bytes.Buffer
-		writeVarInt(&status, 0x00)
-		if err := writeString(&status, `{"version":{"name":"1.20.6","protocol":766},"players":{"max":1,"online":1},"description":"ok"}`, maxStatusJSONLength); err != nil {
-			return err
-		}
-		if err := writePacket(conn, status.Bytes()); err != nil {
-			return err
-		}
-
-		pingPacket, err := readPacket(conn, maxPacketLength)
+		token, err := conn.ExpectPingToken()
 		if err != nil {
 			return err
 		}
-		packetID, consumed, err := readVarIntFromBytes(pingPacket)
-		if err != nil {
-			return err
-		}
-		if packetID != 0x01 {
-			return fmt.Errorf("unexpected ping packet id: %d", packetID)
-		}
-		if len(pingPacket[consumed:]) != 8 {
-			return fmt.Errorf("ping payload size = %d, want 8", len(pingPacket[consumed:]))
-		}
 
-		payload := int64(binary.BigEndian.Uint64(pingPacket[consumed:])) + 1
-		var pong bytes.Buffer
-		writeVarInt(&pong, 0x01)
-		var pongPayload [8]byte
-		binary.BigEndian.PutUint64(pongPayload[:], uint64(payload))
-		pong.Write(pongPayload[:])
-
-		return writePacket(conn, pong.Bytes())
+		return conn.SendPong(token + 1)
 	})
-	defer wait()
+	defer server.Close()
 
-	_, err := pingServerWithOptions(host, port, 2*time.Second, pingOptions{
+	_, err := pingEndpointWithOptions(server.Endpoint(), 2*time.Second, pingOptions{
 		allowPrivateAddresses: true,
 	})
 	if err == nil {
-		t.Fatal("pingServer() expected pong mismatch error but got nil")
+		t.Fatal("pingEndpointWithOptions() expected pong mismatch error but got nil")
 	}
 }
 
 func TestPingServerRejectsPrivateAddressByDefault(t *testing.T) {
-	_, err := pingServer("127.0.0.1", 25565, 2*time.Second)
+	_, err := pingServer("127.0.0.1", defaultMinecraftPort, 2*time.Second)
 	if err == nil {
 		t.Fatal("pingServer() expected private address rejection but got nil")
 	}
@@ -227,7 +198,7 @@ func TestReadStringFromBytesRejectsOversizedPayload(t *testing.T) {
 }
 
 func TestPingServerWithOptionsRejectsPrivateAddressByDefault(t *testing.T) {
-	_, err := pingServerWithOptions("127.0.0.1", 25565, 2*time.Second, pingOptions{
+	_, err := pingServerWithOptions("127.0.0.1", defaultMinecraftPort, 2*time.Second, pingOptions{
 		allowPrivateAddresses: false,
 	})
 	if err == nil {
@@ -238,26 +209,23 @@ func TestPingServerWithOptionsRejectsPrivateAddressByDefault(t *testing.T) {
 	}
 }
 
-func TestPingServerWithOptionsAllowsPrivateAddressWhenEnabled(t *testing.T) {
-	host, port, wait := startTCPTestServer(
-		t,
-		mockStatusPongHandler(`{"version":{"name":"1.20.6","protocol":766},"players":{"max":1000,"online":42},"description":"ok"}`, 10*time.Millisecond),
-	)
-	defer wait()
+func TestPingEndpointWithOptionsAllowsPrivateAddressWhenEnabled(t *testing.T) {
+	server := startFakeMinecraftServer(t, statusPongScript(validStatusJSON, 10*time.Millisecond))
+	defer server.Close()
 
-	latency, err := pingServerWithOptions(host, port, 2*time.Second, pingOptions{
+	latency, err := pingEndpointWithOptions(server.Endpoint(), 2*time.Second, pingOptions{
 		allowPrivateAddresses: true,
 	})
 	if err != nil {
-		t.Fatalf("pingServerWithOptions() unexpected error: %v", err)
+		t.Fatalf("pingEndpointWithOptions() unexpected error: %v", err)
 	}
 	if latency <= 0 {
-		t.Fatalf("pingServerWithOptions() got invalid latency: %d", latency)
+		t.Fatalf("pingEndpointWithOptions() got invalid latency: %d", latency)
 	}
 }
 
 func TestPingServerRejectsExcessiveTimeout(t *testing.T) {
-	_, err := pingServer("127.0.0.1", 25565, maxAllowedTimeout+time.Second)
+	_, err := pingServer("127.0.0.1", defaultMinecraftPort, maxAllowedTimeout+time.Second)
 	if err == nil {
 		t.Fatal("pingServer() expected timeout bounds error but got nil")
 	}
@@ -267,7 +235,7 @@ func TestPingServerRejectsExcessiveTimeout(t *testing.T) {
 }
 
 func TestPingServerRejectsControlCharacterInHost(t *testing.T) {
-	_, err := pingServer("exa\nmple.com", 25565, 2*time.Second)
+	_, err := pingServer("exa\nmple.com", defaultMinecraftPort, 2*time.Second)
 	if err == nil {
 		t.Fatal("pingServer() expected host validation error but got nil")
 	}
@@ -276,7 +244,898 @@ func TestPingServerRejectsControlCharacterInHost(t *testing.T) {
 	}
 }
 
-func startTCPTestServer(t *testing.T, handler func(net.Conn) error) (string, int, func()) {
+func TestEndpointValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		target  endpoint
+		wantErr string
+	}{
+		{
+			name:    "empty host",
+			target:  newEndpoint("   ", defaultMinecraftPort),
+			wantErr: "must not be empty",
+		},
+		{
+			name:    "invalid port",
+			target:  newEndpoint("mc.example.com", 70000),
+			wantErr: "invalid port",
+		},
+		{
+			name:    "valid endpoint",
+			target:  newEndpoint("mc.example.com", defaultMinecraftPort),
+			wantErr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.target.validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("validate() error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestResolveEndpointUsesSRV(t *testing.T) {
+	resolver := &stubResolver{
+		srvRecords: []*net.SRV{{Target: "srv.example.net.", Port: 25570}},
+	}
+	client := pingClient{resolver: resolver}
+
+	route := client.withDefaults().resolveEndpoint(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second)
+
+	if route.Dial != (endpoint{Host: "srv.example.net", Port: 25570}) {
+		t.Fatalf("dial endpoint = %+v", route.Dial)
+	}
+	if route.Handshake != (endpoint{Host: "mc.example.com", Port: 25570}) {
+		t.Fatalf("handshake endpoint = %+v", route.Handshake)
+	}
+	if resolver.srvCalls != 1 {
+		t.Fatalf("LookupSRV calls = %d, want 1", resolver.srvCalls)
+	}
+}
+
+func TestResolveEndpointSkipsSRVForIPAndCustomPort(t *testing.T) {
+	resolver := &stubResolver{}
+	client := pingClient{resolver: resolver}
+
+	ipRoute := client.withDefaults().resolveEndpoint(newEndpoint("127.0.0.1", defaultMinecraftPort), 2*time.Second)
+	if ipRoute.Dial != (endpoint{Host: "127.0.0.1", Port: defaultMinecraftPort}) {
+		t.Fatalf("ip route = %+v", ipRoute)
+	}
+
+	customRoute := client.withDefaults().resolveEndpoint(newEndpoint("mc.example.com", 25570), 2*time.Second)
+	if customRoute.Dial != (endpoint{Host: "mc.example.com", Port: 25570}) {
+		t.Fatalf("custom route = %+v", customRoute)
+	}
+	if resolver.srvCalls != 0 {
+		t.Fatalf("LookupSRV calls = %d, want 0", resolver.srvCalls)
+	}
+}
+
+func TestResolveEndpointFallsBackOnInvalidSRVRecord(t *testing.T) {
+	client := pingClient{
+		resolver: &stubResolver{
+			srvRecords: []*net.SRV{{Target: "", Port: 25570}},
+		},
+	}
+
+	route := client.withDefaults().resolveEndpoint(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second)
+	if route.Dial != (endpoint{Host: "mc.example.com", Port: defaultMinecraftPort}) {
+		t.Fatalf("route = %+v, want unresolved target", route)
+	}
+}
+
+func TestResolveEndpointFallsBackWhenSRVUnavailable(t *testing.T) {
+	target := newEndpoint("mc.example.com", defaultMinecraftPort)
+
+	tests := []struct {
+		name     string
+		resolver *stubResolver
+	}{
+		{
+			name:     "lookup error",
+			resolver: &stubResolver{srvErr: errors.New("srv failed")},
+		},
+		{
+			name:     "no records",
+			resolver: &stubResolver{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			route := pingClient{resolver: tt.resolver}.withDefaults().resolveEndpoint(target, 2*time.Second)
+			if route.Dial != target || route.Handshake != target {
+				t.Fatalf("route = %+v, want unresolved target %+v", route, target)
+			}
+			if tt.resolver.srvCalls != 1 {
+				t.Fatalf("LookupSRV calls = %d, want 1", tt.resolver.srvCalls)
+			}
+		})
+	}
+}
+
+func TestDialMinecraftTCPSkipsPrivateAddresses(t *testing.T) {
+	successConn, peer := net.Pipe()
+	defer peer.Close()
+
+	resolver := &stubResolver{
+		ipAddrs: []net.IP{
+			net.ParseIP("127.0.0.1"),
+			net.ParseIP("8.8.8.8"),
+		},
+	}
+	dialer := &stubDialer{
+		results: map[string]dialResult{
+			"8.8.8.8:25565": {conn: successConn},
+		},
+		defaultErr: errors.New("unexpected dial"),
+	}
+	client := pingClient{
+		resolver:    resolver,
+		dialContext: dialer.DialContext,
+	}
+
+	conn, err := client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, false)
+	if err != nil {
+		t.Fatalf("dialMinecraftTCP() error: %v", err)
+	}
+	_ = conn.Close()
+
+	if len(dialer.attempts) != 1 || dialer.attempts[0] != "8.8.8.8:25565" {
+		t.Fatalf("dial attempts = %v, want [8.8.8.8:25565]", dialer.attempts)
+	}
+}
+
+func TestDialMinecraftTCPReturnsErrorWhenOnlyPrivateAddresses(t *testing.T) {
+	client := pingClient{
+		resolver: &stubResolver{
+			ipAddrs: []net.IP{
+				net.ParseIP("127.0.0.1"),
+				net.ParseIP("10.0.0.8"),
+			},
+		},
+	}
+
+	_, err := client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, false)
+	if err == nil {
+		t.Fatal("dialMinecraftTCP() expected error")
+	}
+	if !strings.Contains(err.Error(), "resolved only to non-public addresses") {
+		t.Fatalf("dialMinecraftTCP() error = %v", err)
+	}
+}
+
+func TestDialMinecraftTCPTriesCandidatesUntilSuccess(t *testing.T) {
+	successConn, peer := net.Pipe()
+	defer peer.Close()
+
+	dialer := &stubDialer{
+		results: map[string]dialResult{
+			"8.8.8.8:25565": {err: errors.New("first attempt failed")},
+			"1.1.1.1:25565": {conn: successConn},
+		},
+	}
+	client := pingClient{
+		resolver: &stubResolver{
+			ipAddrs: []net.IP{
+				net.ParseIP("8.8.8.8"),
+				net.ParseIP("1.1.1.1"),
+			},
+		},
+		dialContext: dialer.DialContext,
+	}
+
+	conn, err := client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, false)
+	if err != nil {
+		t.Fatalf("dialMinecraftTCP() error: %v", err)
+	}
+	_ = conn.Close()
+
+	if strings.Join(dialer.attempts, ",") != "8.8.8.8:25565,1.1.1.1:25565" {
+		t.Fatalf("dial attempts = %v", dialer.attempts)
+	}
+}
+
+func TestDialMinecraftTCPDirectIPAllowsPublicAddresses(t *testing.T) {
+	successConn, peer := net.Pipe()
+	defer peer.Close()
+
+	dialer := &stubDialer{
+		results: map[string]dialResult{
+			"8.8.8.8:25565": {conn: successConn},
+		},
+	}
+	client := pingClient{dialContext: dialer.DialContext}
+
+	conn, err := client.withDefaults().dialMinecraftTCP(newEndpoint("8.8.8.8", defaultMinecraftPort), 2*time.Second, false)
+	if err != nil {
+		t.Fatalf("dialMinecraftTCP() error: %v", err)
+	}
+	_ = conn.Close()
+
+	if len(dialer.attempts) != 1 || dialer.attempts[0] != "8.8.8.8:25565" {
+		t.Fatalf("dial attempts = %v", dialer.attempts)
+	}
+}
+
+func TestDialMinecraftTCPPropagatesLookupAndDialErrors(t *testing.T) {
+	lookupErr := errors.New("lookup failed")
+	client := pingClient{
+		resolver: &stubResolver{ipErr: lookupErr},
+	}
+
+	_, err := client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, false)
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf("dialMinecraftTCP() error = %v, want %v", err, lookupErr)
+	}
+
+	dialErr := errors.New("all dials failed")
+	client = pingClient{
+		resolver: &stubResolver{
+			ipAddrs: []net.IP{net.ParseIP("8.8.8.8")},
+		},
+		dialContext: func(context.Context, string, string) (net.Conn, error) {
+			return nil, dialErr
+		},
+	}
+
+	_, err = client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, false)
+	if !errors.Is(err, dialErr) {
+		t.Fatalf("dialMinecraftTCP() error = %v, want %v", err, dialErr)
+	}
+}
+
+func TestDialMinecraftTCPResolverEdgeCases(t *testing.T) {
+	t.Run("no resolved addresses", func(t *testing.T) {
+		client := pingClient{
+			resolver: &stubResolver{ipAddrs: []net.IP{}},
+		}
+
+		_, err := client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, false)
+		if err == nil || !strings.Contains(err.Error(), "no addresses resolved") {
+			t.Fatalf("dialMinecraftTCP() error = %v, want no-addresses error", err)
+		}
+	})
+
+	t.Run("context expiry stops additional attempts", func(t *testing.T) {
+		dialer := &stubDialer{
+			results: map[string]dialResult{
+				"8.8.8.8:25565": {err: context.DeadlineExceeded},
+				"1.1.1.1:25565": {err: errors.New("should not be attempted")},
+			},
+		}
+		client := pingClient{
+			resolver: &stubResolver{
+				ipAddrs: []net.IP{
+					net.ParseIP("8.8.8.8"),
+					net.ParseIP("1.1.1.1"),
+				},
+			},
+			dialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				<-ctx.Done()
+				return dialer.DialContext(ctx, network, address)
+			},
+		}
+
+		_, err := client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), time.Millisecond, false)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("dialMinecraftTCP() error = %v, want %v", err, context.DeadlineExceeded)
+		}
+		if len(dialer.attempts) != 1 || dialer.attempts[0] != "8.8.8.8:25565" {
+			t.Fatalf("dial attempts = %v, want only the first candidate", dialer.attempts)
+		}
+	})
+}
+
+func TestFinalizeDialError(t *testing.T) {
+	sentinel := errors.New("dial failed")
+	if err := finalizeDialError(sentinel); !errors.Is(err, sentinel) {
+		t.Fatalf("finalizeDialError() error = %v, want %v", err, sentinel)
+	}
+	if err := finalizeDialError(nil); err == nil || !strings.Contains(err.Error(), "failed to dial any resolved address") {
+		t.Fatalf("finalizeDialError(nil) = %v", err)
+	}
+}
+
+func TestPingClientUsesMinimumOneMillisecondLatency(t *testing.T) {
+	server := startFakeMinecraftServer(t, statusPongScript(validStatusJSON, 0))
+	defer server.Close()
+
+	now := time.Now()
+	client := pingClient{
+		resolver:    net.DefaultResolver,
+		dialContext: defaultDialContext,
+		tokenSource: func() (uint64, error) { return 42, nil },
+		now: func() time.Time {
+			return now
+		},
+	}
+
+	latency, err := client.withDefaults().pingEndpoint(endpointRoute{
+		Dial:      server.Endpoint(),
+		Handshake: server.Endpoint(),
+	}, 2*time.Second, true)
+	if err != nil {
+		t.Fatalf("pingEndpoint() error: %v", err)
+	}
+	if latency != 1 {
+		t.Fatalf("latency = %d, want 1", latency)
+	}
+}
+
+func TestPingClientWrapsResolvedDialError(t *testing.T) {
+	sentinel := errors.New("dial failed")
+	client := pingClient{
+		resolver: &stubResolver{
+			srvRecords: []*net.SRV{{Target: "8.8.8.8.", Port: 25570}},
+		},
+		dialContext: func(context.Context, string, string) (net.Conn, error) {
+			return nil, sentinel
+		},
+	}
+
+	_, err := client.withDefaults().ping(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, pingOptions{
+		allowPrivateAddresses: true,
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("ping() error = %v, want %v", err, sentinel)
+	}
+	if !strings.Contains(err.Error(), "resolved to 8.8.8.8:25570") {
+		t.Fatalf("ping() error = %q, want resolved endpoint context", err.Error())
+	}
+}
+
+func TestPingEndpointUsesHandshakeEndpoint(t *testing.T) {
+	handshakeTarget := endpoint{Host: "mc.example.com", Port: 25570}
+	server := startFakeMinecraftServer(t, func(conn *fakeMinecraftConn) error {
+		if err := conn.SetDeadline(2 * time.Second); err != nil {
+			return err
+		}
+
+		gotHandshake, err := conn.ExpectStatusHandshake()
+		if err != nil {
+			return err
+		}
+		if gotHandshake != handshakeTarget {
+			return fmt.Errorf("handshake endpoint = %+v, want %+v", gotHandshake, handshakeTarget)
+		}
+		if err := conn.SendStatusJSON(validStatusJSON); err != nil {
+			return err
+		}
+
+		token, err := conn.ExpectPingToken()
+		if err != nil {
+			return err
+		}
+		return conn.SendPong(token)
+	})
+	defer server.Close()
+
+	client := pingClient{
+		resolver:    net.DefaultResolver,
+		dialContext: defaultDialContext,
+		tokenSource: func() (uint64, error) { return 7, nil },
+		now:         time.Now,
+	}
+
+	latency, err := client.withDefaults().pingEndpoint(endpointRoute{
+		Dial:      server.Endpoint(),
+		Handshake: handshakeTarget,
+	}, 2*time.Second, true)
+	if err != nil {
+		t.Fatalf("pingEndpoint() error: %v", err)
+	}
+	if latency <= 0 {
+		t.Fatalf("latency = %d, want positive", latency)
+	}
+}
+
+func TestPingEndpointPropagatesTokenError(t *testing.T) {
+	server := startFakeMinecraftServer(t, func(conn *fakeMinecraftConn) error {
+		if err := conn.SetDeadline(2 * time.Second); err != nil {
+			return err
+		}
+		if _, err := conn.ExpectStatusHandshake(); err != nil {
+			return err
+		}
+		return conn.SendStatusJSON(validStatusJSON)
+	})
+	defer server.Close()
+
+	sentinel := errors.New("token failed")
+	client := pingClient{
+		resolver:    net.DefaultResolver,
+		dialContext: defaultDialContext,
+		tokenSource: func() (uint64, error) { return 0, sentinel },
+		now:         time.Now,
+	}
+
+	_, err := client.withDefaults().pingEndpoint(endpointRoute{
+		Dial:      server.Endpoint(),
+		Handshake: server.Endpoint(),
+	}, 2*time.Second, true)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("pingEndpoint() error = %v, want %v", err, sentinel)
+	}
+}
+
+func TestPingEndpointPropagatesConnectionSetupErrors(t *testing.T) {
+	validStatusPacket := encodePacket(t, func(buf *bytes.Buffer) {
+		writeVarInt(buf, packetIDStatusResponse)
+		if err := writeString(buf, validStatusJSON, maxStatusJSONLength); err != nil {
+			t.Fatalf("writeString() error: %v", err)
+		}
+	})
+
+	tests := []struct {
+		name string
+		conn *scriptedConn
+		err  error
+	}{
+		{
+			name: "deadline error",
+			conn: &scriptedConn{deadlineErr: errors.New("deadline failed")},
+			err:  errors.New("deadline failed"),
+		},
+		{
+			name: "handshake write error",
+			conn: &scriptedConn{writeErrAt: map[int]error{1: errors.New("handshake write failed")}},
+			err:  errors.New("handshake write failed"),
+		},
+		{
+			name: "status request write error",
+			conn: &scriptedConn{writeErrAt: map[int]error{2: errors.New("status request write failed")}},
+			err:  errors.New("status request write failed"),
+		},
+		{
+			name: "ping write error",
+			conn: newScriptedConn(validStatusPacket, map[int]error{3: errors.New("ping write failed")}),
+			err:  errors.New("ping write failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := pingClient{
+				dialContext: func(context.Context, string, string) (net.Conn, error) {
+					return tt.conn, nil
+				},
+				tokenSource: func() (uint64, error) { return 7, nil },
+				now:         time.Now,
+			}
+
+			_, err := client.withDefaults().pingEndpoint(endpointRoute{
+				Dial:      newEndpoint("8.8.8.8", defaultMinecraftPort),
+				Handshake: newEndpoint("mc.example.com", defaultMinecraftPort),
+			}, 2*time.Second, true)
+			if err == nil || err.Error() != tt.err.Error() {
+				t.Fatalf("pingEndpoint() error = %v, want %v", err, tt.err)
+			}
+			if !tt.conn.closed {
+				t.Fatal("pingEndpoint() did not close the connection")
+			}
+		})
+	}
+}
+
+func TestGeneratePingTokenPropagatesRandomReadError(t *testing.T) {
+	originalRandomRead := randomRead
+	t.Cleanup(func() {
+		randomRead = originalRandomRead
+	})
+
+	sentinel := errors.New("entropy unavailable")
+	randomRead = func([]byte) (int, error) {
+		return 0, sentinel
+	}
+
+	_, err := generatePingToken()
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("generatePingToken() error = %v, want %v", err, sentinel)
+	}
+}
+
+func TestReadStatusResponseErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload []byte
+		wantErr error
+		wantMsg string
+	}{
+		{
+			name:    "packet read error",
+			payload: []byte{0x80},
+			wantErr: io.EOF,
+		},
+		{
+			name: "packet id varint error",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				buf.Write([]byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x01})
+			}),
+			wantErr: errVarIntTooLong,
+		},
+		{
+			name: "string decode error",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				writeVarInt(buf, packetIDStatusResponse)
+				writeVarInt(buf, -1)
+			}),
+			wantMsg: "invalid string size",
+		},
+		{
+			name: "unexpected packet id",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				writeVarInt(buf, 0x02)
+			}),
+			wantMsg: "unexpected status packet id",
+		},
+		{
+			name: "invalid json",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				writeVarInt(buf, packetIDStatusResponse)
+				if err := writeString(buf, "{invalid", maxStatusJSONLength); err != nil {
+					t.Fatalf("writeString() error: %v", err)
+				}
+			}),
+			wantMsg: "invalid status response JSON",
+		},
+		{
+			name: "invalid framing",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				writeVarInt(buf, packetIDStatusResponse)
+				if err := writeString(buf, "{}", maxStatusJSONLength); err != nil {
+					t.Fatalf("writeString() error: %v", err)
+				}
+				buf.WriteByte(0x00)
+			}),
+			wantMsg: "invalid status response payload framing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := readStatusResponse(bytes.NewReader(tt.payload))
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("readStatusResponse() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Fatalf("readStatusResponse() error = %v, want substring %q", err, tt.wantMsg)
+			}
+		})
+	}
+}
+
+func TestReadPongPacketErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload []byte
+		wantErr error
+		wantMsg string
+	}{
+		{
+			name:    "packet read error",
+			payload: []byte{0x80},
+			wantErr: io.EOF,
+		},
+		{
+			name: "packet id varint error",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				buf.Write([]byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x01})
+			}),
+			wantErr: errVarIntTooLong,
+		},
+		{
+			name: "unexpected packet id",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				writeVarInt(buf, 0x02)
+			}),
+			wantMsg: "unexpected pong packet id",
+		},
+		{
+			name: "invalid payload size",
+			payload: encodePacket(t, func(buf *bytes.Buffer) {
+				writeVarInt(buf, packetIDPong)
+				buf.Write([]byte{0x00, 0x01})
+			}),
+			wantMsg: "invalid pong payload size",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := readPongPacket(bytes.NewReader(tt.payload), 42)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("readPongPacket() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Fatalf("readPongPacket() error = %v, want substring %q", err, tt.wantMsg)
+			}
+		})
+	}
+}
+
+func TestReadStringFromBytesErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload []byte
+		wantErr error
+		wantMsg string
+	}{
+		{
+			name:    "unexpected eof",
+			payload: []byte{0x04, 'a', 'b', 'c'},
+			wantErr: io.ErrUnexpectedEOF,
+		},
+		{
+			name:    "invalid utf8",
+			payload: []byte{0x02, 0xc3, 0x28},
+			wantMsg: "valid UTF-8",
+		},
+		{
+			name:    "invalid varint",
+			payload: []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x01},
+			wantErr: errVarIntTooLong,
+		},
+		{
+			name:    "negative size",
+			payload: []byte{0xff, 0xff, 0xff, 0xff, 0x0f},
+			wantMsg: "invalid string size",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := readStringFromBytes(tt.payload, maxHandshakeHostByteSize)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("readStringFromBytes() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Fatalf("readStringFromBytes() error = %v, want substring %q", err, tt.wantMsg)
+			}
+		})
+	}
+}
+
+func TestWritePacketRejectsInvalidPayload(t *testing.T) {
+	var buf bytes.Buffer
+
+	if err := writePacket(&buf, nil); err == nil {
+		t.Fatal("writePacket() expected empty payload error")
+	}
+
+	tooLarge := make([]byte, maxPacketLength+1)
+	if err := writePacket(&buf, tooLarge); err == nil {
+		t.Fatal("writePacket() expected oversized payload error")
+	}
+}
+
+func TestReadPacketRejectsInvalidLength(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload []byte
+		wantErr string
+	}{
+		{
+			name:    "zero length",
+			payload: []byte{0x00},
+			wantErr: "invalid packet length",
+		},
+		{
+			name:    "too large",
+			payload: []byte{0x02, 0x00, 0x01},
+			wantErr: "exceeds limit 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := readPacket(bytes.NewReader(tt.payload), 1)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("readPacket() error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestReadPacketUnexpectedEOF(t *testing.T) {
+	_, err := readPacket(bytes.NewReader([]byte{0x02, 0x00}), 2)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("readPacket() error = %v, want %v", err, io.ErrUnexpectedEOF)
+	}
+}
+
+func TestReadPacketPropagatesVarIntError(t *testing.T) {
+	_, err := readPacket(bytes.NewReader([]byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x01}), maxPacketLength)
+	if !errors.Is(err, errVarIntTooLong) {
+		t.Fatalf("readPacket() error = %v, want %v", err, errVarIntTooLong)
+	}
+}
+
+func TestWriteStringRejectsOversizedValue(t *testing.T) {
+	var buf bytes.Buffer
+	if err := writeString(&buf, "toolong", 3); err == nil {
+		t.Fatal("writeString() expected oversized value error")
+	}
+}
+
+func TestValidateStringByteLength(t *testing.T) {
+	tests := []struct {
+		name    string
+		length  int
+		max     int
+		wantMsg string
+	}{
+		{name: "ok", length: 3, max: 3},
+		{name: "max bytes", length: 4, max: 3, wantMsg: "exceeds max"},
+		{name: "int32", length: math.MaxInt32 + 1, max: math.MaxInt32 + 1, wantMsg: "exceeds int32 max"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateStringByteLength(tt.length, tt.max)
+			if tt.wantMsg == "" {
+				if err != nil {
+					t.Fatalf("validateStringByteLength() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Fatalf("validateStringByteLength() error = %v, want substring %q", err, tt.wantMsg)
+			}
+		})
+	}
+}
+
+func TestSendHandshakePacketRejectsInvalidEndpoint(t *testing.T) {
+	var buf bytes.Buffer
+
+	if err := sendHandshakePacket(&buf, endpoint{Host: strings.Repeat("a", maxHandshakeHostByteSize+1), Port: defaultMinecraftPort}); err == nil {
+		t.Fatal("sendHandshakePacket() expected oversized host error")
+	}
+	if err := sendHandshakePacket(&buf, endpoint{Host: "mc.example.com", Port: -1}); err == nil {
+		t.Fatal("sendHandshakePacket() expected invalid port error")
+	}
+}
+
+func TestToUint16Bounds(t *testing.T) {
+	if _, err := toUint16(-1); err == nil {
+		t.Fatal("toUint16(-1) expected error")
+	}
+	if _, err := toUint16(70000); err == nil {
+		t.Fatal("toUint16(70000) expected error")
+	}
+	if value, err := toUint16(25565); err != nil || value != 25565 {
+		t.Fatalf("toUint16(25565) = %d, %v", value, err)
+	}
+}
+
+func TestValidateServerAddressRejectsOversizedHost(t *testing.T) {
+	err := validateServerAddress(strings.Repeat("a", maxServerAddressLength+1))
+	if err == nil || !strings.Contains(err.Error(), "must not exceed") {
+		t.Fatalf("validateServerAddress() error = %v", err)
+	}
+}
+
+func TestDefaultPingUsesEndpoint(t *testing.T) {
+	server := startFakeMinecraftServer(t, statusPongScript(validStatusJSON, 0))
+	defer server.Close()
+
+	latency, err := defaultPing(server.Endpoint(), 2*time.Second, pingOptions{allowPrivateAddresses: true})
+	if err != nil {
+		t.Fatalf("defaultPing() error: %v", err)
+	}
+	if latency <= 0 {
+		t.Fatalf("latency = %d, want positive", latency)
+	}
+}
+
+func TestRenderResultDefaultFormatFallsBackToText(t *testing.T) {
+	if got := renderResult("yaml", newEndpoint("mc.example.com", defaultMinecraftPort), 5); got != "Ping time is 5 ms" {
+		t.Fatalf("renderResult() = %q", got)
+	}
+}
+
+func TestIsNonPublicIPAddress(t *testing.T) {
+	if !isNonPublicIPAddress(net.ParseIP("127.0.0.1")) {
+		t.Fatal("127.0.0.1 should be non-public")
+	}
+	if isNonPublicIPAddress(net.ParseIP("8.8.8.8")) {
+		t.Fatal("8.8.8.8 should be public")
+	}
+	if !isNonPublicIPAddress(nil) {
+		t.Fatal("nil IP should be treated as non-public")
+	}
+}
+
+func TestMustParsePrefixPanicsOnInvalidInput(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("mustParsePrefix() expected panic")
+		}
+	}()
+
+	_ = mustParsePrefix("not-a-prefix")
+}
+
+type fakeMinecraftServer struct {
+	t        *testing.T
+	listener net.Listener
+	endpoint endpoint
+	errCh    chan error
+}
+
+type scriptedConn struct {
+	readBuf     *bytes.Reader
+	writeErrAt  map[int]error
+	writes      [][]byte
+	writeCalls  int
+	deadlineErr error
+	closed      bool
+}
+
+type fakeMinecraftConn struct {
+	conn net.Conn
+}
+
+type staticAddr string
+
+func newScriptedConn(readPayload []byte, writeErrAt map[int]error) *scriptedConn {
+	return &scriptedConn{
+		readBuf:    bytes.NewReader(readPayload),
+		writeErrAt: writeErrAt,
+	}
+}
+
+func (c *scriptedConn) Read(p []byte) (int, error) {
+	if c.readBuf == nil {
+		return 0, io.EOF
+	}
+	return c.readBuf.Read(p)
+}
+
+func (c *scriptedConn) Write(p []byte) (int, error) {
+	c.writeCalls++
+	if err, ok := c.writeErrAt[c.writeCalls]; ok {
+		return 0, err
+	}
+
+	written := append([]byte(nil), p...)
+	c.writes = append(c.writes, written)
+	return len(p), nil
+}
+
+func (c *scriptedConn) Close() error {
+	c.closed = true
+	return nil
+}
+
+func (c *scriptedConn) LocalAddr() net.Addr              { return staticAddr("local") }
+func (c *scriptedConn) RemoteAddr() net.Addr             { return staticAddr("remote") }
+func (c *scriptedConn) SetDeadline(time.Time) error      { return c.deadlineErr }
+func (c *scriptedConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *scriptedConn) SetWriteDeadline(time.Time) error { return nil }
+func (a staticAddr) Network() string                     { return "tcp" }
+func (a staticAddr) String() string                      { return string(a) }
+
+func startFakeMinecraftServer(t *testing.T, script func(*fakeMinecraftConn) error) *fakeMinecraftServer {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -284,136 +1143,107 @@ func startTCPTestServer(t *testing.T, handler func(net.Conn) error) (string, int
 		t.Fatalf("failed to start test server: %v", err)
 	}
 
-	errCh := make(chan error, 1)
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		listener.Close()
+		t.Fatalf("listener addr = %T, want *net.TCPAddr", listener.Addr())
+	}
+
+	server := &fakeMinecraftServer{
+		t:        t,
+		listener: listener,
+		endpoint: endpoint{Host: addr.IP.String(), Port: addr.Port},
+		errCh:    make(chan error, 1),
+	}
+
 	go func() {
-		defer close(errCh)
+		defer close(server.errCh)
 
 		conn, err := listener.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			errCh <- err
+			server.errCh <- err
 			return
 		}
 		defer conn.Close()
 
-		errCh <- handler(conn)
+		server.errCh <- script(&fakeMinecraftConn{conn: conn})
 	}()
 
-	host, portText, err := net.SplitHostPort(listener.Addr().String())
-	if err != nil {
-		listener.Close()
-		t.Fatalf("failed to parse test server addr: %v", err)
-	}
-
-	port, err := strconv.Atoi(portText)
-	if err != nil {
-		listener.Close()
-		t.Fatalf("failed to parse test server port: %v", err)
-	}
-
-	wait := func() {
-		t.Helper()
-		_ = listener.Close()
-		if err, ok := <-errCh; ok && err != nil {
-			t.Fatalf("mock server error: %v", err)
-		}
-	}
-
-	return host, port, wait
+	return server
 }
 
-func mockStatusPongHandler(statusJSON string, pongDelay time.Duration) func(net.Conn) error {
-	return func(conn net.Conn) error {
-		if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
-			return err
-		}
+func (s *fakeMinecraftServer) Endpoint() endpoint {
+	return s.endpoint
+}
 
-		if err := readHandshakeAndStatusRequest(conn); err != nil {
-			return err
-		}
-
-		var status bytes.Buffer
-		writeVarInt(&status, 0x00)
-		if err := writeString(&status, statusJSON, maxStatusJSONLength); err != nil {
-			return err
-		}
-		if err := writePacket(conn, status.Bytes()); err != nil {
-			return err
-		}
-
-		pingPacket, err := readPacket(conn, maxPacketLength)
-		if err != nil {
-			return err
-		}
-		packetID, consumed, err := readVarIntFromBytes(pingPacket)
-		if err != nil {
-			return err
-		}
-		if packetID != 0x01 {
-			return fmt.Errorf("unexpected ping packet id: %d", packetID)
-		}
-		if len(pingPacket[consumed:]) != 8 {
-			return fmt.Errorf("ping payload size = %d, want 8", len(pingPacket[consumed:]))
-		}
-
-		if pongDelay > 0 {
-			time.Sleep(pongDelay)
-		}
-
-		var pong bytes.Buffer
-		writeVarInt(&pong, 0x01)
-		pong.Write(pingPacket[consumed:])
-		return writePacket(conn, pong.Bytes())
+func (s *fakeMinecraftServer) Close() {
+	s.t.Helper()
+	_ = s.listener.Close()
+	if err, ok := <-s.errCh; ok && err != nil {
+		s.t.Fatalf("mock server error: %v", err)
 	}
 }
 
-func readHandshakeAndStatusRequest(conn net.Conn) error {
-	handshake, err := readPacket(conn, maxPacketLength)
+func (c *fakeMinecraftConn) SetDeadline(timeout time.Duration) error {
+	return c.conn.SetDeadline(time.Now().Add(timeout))
+}
+
+func (c *fakeMinecraftConn) ExpectHandshake() (endpoint, error) {
+	handshake, err := readPacket(c.conn, maxPacketLength)
 	if err != nil {
-		return err
+		return endpoint{}, err
 	}
 
 	packetID, consumed, err := readVarIntFromBytes(handshake)
 	if err != nil {
-		return err
+		return endpoint{}, err
 	}
-	if packetID != 0x00 {
-		return fmt.Errorf("unexpected handshake packet id: %d", packetID)
+	if packetID != packetIDHandshake {
+		return endpoint{}, fmt.Errorf("unexpected handshake packet id: %d", packetID)
 	}
 
-	_, protocolBytes, err := readVarIntFromBytes(handshake[consumed:])
+	protocolVersion, protocolBytes, err := readVarIntFromBytes(handshake[consumed:])
 	if err != nil {
-		return err
+		return endpoint{}, err
 	}
 	consumed += protocolBytes
+	if protocolVersion != statusProtocolVersion {
+		return endpoint{}, fmt.Errorf("unexpected protocol version: %d", protocolVersion)
+	}
 
-	_, hostBytes, err := readStringFromBytes(handshake[consumed:], maxHandshakeHostByteSize)
+	host, hostBytes, err := readStringFromBytes(handshake[consumed:], maxHandshakeHostByteSize)
 	if err != nil {
-		return err
+		return endpoint{}, err
 	}
 	consumed += hostBytes
 
 	if len(handshake[consumed:]) < 2 {
-		return errors.New("missing handshake port bytes")
+		return endpoint{}, errors.New("missing handshake port bytes")
 	}
+	port := int(binary.BigEndian.Uint16(handshake[consumed:]))
 	consumed += 2
 
 	nextState, stateBytes, err := readVarIntFromBytes(handshake[consumed:])
 	if err != nil {
-		return err
+		return endpoint{}, err
 	}
 	consumed += stateBytes
 
-	if nextState != 0x01 {
-		return fmt.Errorf("unexpected next state: %d", nextState)
+	if nextState != nextStateStatus {
+		return endpoint{}, fmt.Errorf("unexpected next state: %d", nextState)
 	}
 	if consumed != len(handshake) {
-		return fmt.Errorf("unexpected trailing handshake bytes: %d", len(handshake)-consumed)
+		return endpoint{}, fmt.Errorf("unexpected trailing handshake bytes: %d", len(handshake)-consumed)
 	}
 
-	statusRequest, err := readPacket(conn, maxPacketLength)
+	return endpoint{Host: host, Port: port}, nil
+}
+
+func (c *fakeMinecraftConn) ExpectStatusRequest() error {
+	statusRequest, err := readPacket(c.conn, maxPacketLength)
 	if err != nil {
 		return err
 	}
@@ -422,7 +1252,7 @@ func readHandshakeAndStatusRequest(conn net.Conn) error {
 	if err != nil {
 		return err
 	}
-	if requestID != 0x00 {
+	if requestID != packetIDStatusResponse {
 		return fmt.Errorf("unexpected status request packet id: %d", requestID)
 	}
 	if requestBytes != len(statusRequest) {
@@ -430,4 +1260,145 @@ func readHandshakeAndStatusRequest(conn net.Conn) error {
 	}
 
 	return nil
+}
+
+func (c *fakeMinecraftConn) ExpectStatusHandshake() (endpoint, error) {
+	handshakeTarget, err := c.ExpectHandshake()
+	if err != nil {
+		return endpoint{}, err
+	}
+	if err := c.ExpectStatusRequest(); err != nil {
+		return endpoint{}, err
+	}
+	return handshakeTarget, nil
+}
+
+func (c *fakeMinecraftConn) SendStatusJSON(statusJSON string) error {
+	var status bytes.Buffer
+	writeVarInt(&status, packetIDStatusResponse)
+	if err := writeString(&status, statusJSON, maxStatusJSONLength); err != nil {
+		return err
+	}
+	return c.SendPacket(status.Bytes())
+}
+
+func (c *fakeMinecraftConn) ExpectPingToken() (uint64, error) {
+	pingPacket, err := readPacket(c.conn, maxPacketLength)
+	if err != nil {
+		return 0, err
+	}
+
+	packetID, consumed, err := readVarIntFromBytes(pingPacket)
+	if err != nil {
+		return 0, err
+	}
+	if packetID != packetIDPing {
+		return 0, fmt.Errorf("unexpected ping packet id: %d", packetID)
+	}
+	if len(pingPacket[consumed:]) != 8 {
+		return 0, fmt.Errorf("ping payload size = %d, want 8", len(pingPacket[consumed:]))
+	}
+
+	return binary.BigEndian.Uint64(pingPacket[consumed:]), nil
+}
+
+func (c *fakeMinecraftConn) SendPong(token uint64) error {
+	var pong bytes.Buffer
+	writeVarInt(&pong, packetIDPong)
+
+	var payload [8]byte
+	binary.BigEndian.PutUint64(payload[:], token)
+	pong.Write(payload[:])
+
+	return c.SendPacket(pong.Bytes())
+}
+
+func (c *fakeMinecraftConn) SendPacket(payload []byte) error {
+	return writePacket(c.conn, payload)
+}
+
+func statusPongScript(statusJSON string, pongDelay time.Duration) func(*fakeMinecraftConn) error {
+	return func(conn *fakeMinecraftConn) error {
+		if err := conn.SetDeadline(3 * time.Second); err != nil {
+			return err
+		}
+
+		if _, err := conn.ExpectStatusHandshake(); err != nil {
+			return err
+		}
+		if err := conn.SendStatusJSON(statusJSON); err != nil {
+			return err
+		}
+
+		token, err := conn.ExpectPingToken()
+		if err != nil {
+			return err
+		}
+
+		if pongDelay > 0 {
+			time.Sleep(pongDelay)
+		}
+
+		return conn.SendPong(token)
+	}
+}
+
+type stubResolver struct {
+	srvRecords []*net.SRV
+	srvErr     error
+	ipAddrs    []net.IP
+	ipErr      error
+	srvCalls   int
+	ipCalls    int
+}
+
+func (r *stubResolver) LookupSRV(context.Context, string, string, string) (string, []*net.SRV, error) {
+	r.srvCalls++
+	return "", r.srvRecords, r.srvErr
+}
+
+func (r *stubResolver) LookupIP(context.Context, string, string) ([]net.IP, error) {
+	r.ipCalls++
+	return r.ipAddrs, r.ipErr
+}
+
+type dialResult struct {
+	conn net.Conn
+	err  error
+}
+
+type stubDialer struct {
+	attempts   []string
+	results    map[string]dialResult
+	defaultErr error
+}
+
+func (d *stubDialer) DialContext(_ context.Context, _ string, address string) (net.Conn, error) {
+	d.attempts = append(d.attempts, address)
+
+	if result, ok := d.results[address]; ok {
+		if result.conn != nil {
+			return result.conn, nil
+		}
+		return nil, result.err
+	}
+	if d.defaultErr != nil {
+		return nil, d.defaultErr
+	}
+	return nil, fmt.Errorf("unexpected dial target %s", address)
+}
+
+func encodePacket(t *testing.T, build func(*bytes.Buffer)) []byte {
+	t.Helper()
+
+	var payload bytes.Buffer
+	build(&payload)
+
+	var packet bytes.Buffer
+	writeVarInt(&packet, int32(payload.Len()))
+	if _, err := io.Copy(&packet, &payload); err != nil {
+		t.Fatalf("io.Copy() error: %v", err)
+	}
+
+	return packet.Bytes()
 }

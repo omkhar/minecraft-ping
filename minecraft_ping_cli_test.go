@@ -18,13 +18,13 @@ func TestRunCLITextOutput(t *testing.T) {
 	err := runCLI(
 		[]string{"-server", "mc.example.com", "-port", "25566", "-timeout", "2s"},
 		&output,
-		func(server string, port int, timeout time.Duration, options pingOptions) (int, error) {
+		func(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
 			called = true
-			if server != "mc.example.com" {
-				t.Fatalf("server = %q, want mc.example.com", server)
+			if target.Host != "mc.example.com" {
+				t.Fatalf("server = %q, want mc.example.com", target.Host)
 			}
-			if port != 25566 {
-				t.Fatalf("port = %d, want 25566", port)
+			if target.Port != 25566 {
+				t.Fatalf("port = %d, want 25566", target.Port)
 			}
 			if timeout != 2*time.Second {
 				t.Fatalf("timeout = %s, want 2s", timeout)
@@ -52,12 +52,12 @@ func TestRunCLIJSONOutput(t *testing.T) {
 	err := runCLI(
 		[]string{"-server", "json.example", "-allow-private", "-format", "JSON"},
 		&output,
-		func(server string, port int, timeout time.Duration, options pingOptions) (int, error) {
-			if server != "json.example" {
-				t.Fatalf("server = %q, want json.example", server)
+		func(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
+			if target.Host != "json.example" {
+				t.Fatalf("server = %q, want json.example", target.Host)
 			}
-			if port != 25565 {
-				t.Fatalf("port = %d, want default 25565", port)
+			if target.Port != 25565 {
+				t.Fatalf("port = %d, want default 25565", target.Port)
 			}
 			if timeout != 5*time.Second {
 				t.Fatalf("timeout = %s, want default 5s", timeout)
@@ -91,7 +91,7 @@ func TestRunCLIRejectsInvalidFormatBeforePing(t *testing.T) {
 	err := runCLI(
 		[]string{"-format", "xml"},
 		&output,
-		func(string, int, time.Duration, pingOptions) (int, error) {
+		func(endpoint, time.Duration, pingOptions) (int, error) {
 			called = true
 			return 1, nil
 		},
@@ -130,7 +130,7 @@ func TestRunCLIInvalidFlagReturnsErrorWithoutCallingPingAndNoStderr(t *testing.T
 	err = runCLI(
 		[]string{"-unknown-flag"},
 		&output,
-		func(string, int, time.Duration, pingOptions) (int, error) {
+		func(endpoint, time.Duration, pingOptions) (int, error) {
 			called = true
 			return 1, nil
 		},
@@ -164,7 +164,7 @@ func TestRunCLIPropagatesPingError(t *testing.T) {
 	err := runCLI(
 		[]string{"-server", "mc.example.com"},
 		&output,
-		func(string, int, time.Duration, pingOptions) (int, error) {
+		func(endpoint, time.Duration, pingOptions) (int, error) {
 			return 0, sentinel
 		},
 	)
@@ -208,6 +208,45 @@ func TestNormalizeOutputFormat(t *testing.T) {
 	}
 }
 
+func TestParseCLIConfig(t *testing.T) {
+	config, err := parseCLIConfig([]string{"-server", " trimmed.example ", "-port", "25570", "-timeout", "3s", "-allow-private", "-format", "JSON"})
+	if err != nil {
+		t.Fatalf("parseCLIConfig() error: %v", err)
+	}
+	if config.Endpoint.Host != "trimmed.example" {
+		t.Fatalf("server = %q, want trimmed.example", config.Endpoint.Host)
+	}
+	if config.Endpoint.Port != 25570 {
+		t.Fatalf("port = %d, want 25570", config.Endpoint.Port)
+	}
+	if config.Timeout != 3*time.Second {
+		t.Fatalf("timeout = %s, want 3s", config.Timeout)
+	}
+	if config.Format != "json" {
+		t.Fatalf("format = %q, want json", config.Format)
+	}
+	if !config.Options.allowPrivateAddresses {
+		t.Fatal("allowPrivateAddresses = false, want true")
+	}
+}
+
+func TestRenderResult(t *testing.T) {
+	target := newEndpoint("mc.example.com", defaultMinecraftPort)
+
+	if got := renderResult("text", target, 12); got != "Ping time is 12 ms" {
+		t.Fatalf("renderResult(text) = %q", got)
+	}
+
+	got := renderResult("json", target, 12)
+	var result pingResult
+	if err := json.Unmarshal([]byte(got), &result); err != nil {
+		t.Fatalf("json.Unmarshal() error: %v", err)
+	}
+	if result.Server != "mc.example.com" || result.LatencyMs != 12 {
+		t.Fatalf("renderResult(json) = %+v", result)
+	}
+}
+
 func TestArgsWithoutProgram(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -234,6 +273,16 @@ func TestArgsWithoutProgram(t *testing.T) {
 	}
 }
 
+func TestMainArgsDefaultsToOSArgs(t *testing.T) {
+	args := mainArgs()
+	if len(args) == 0 {
+		t.Fatal("mainArgs() returned no arguments")
+	}
+	if args[0] != os.Args[0] {
+		t.Fatalf("mainArgs()[0] = %q, want %q", args[0], os.Args[0])
+	}
+}
+
 func TestExecuteSuccess(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -241,7 +290,7 @@ func TestExecuteSuccess(t *testing.T) {
 		[]string{"minecraft-ping", "-server", "mc.example.com"},
 		&stdout,
 		&stderr,
-		func(string, int, time.Duration, pingOptions) (int, error) {
+		func(endpoint, time.Duration, pingOptions) (int, error) {
 			return 11, nil
 		},
 	)
@@ -263,7 +312,7 @@ func TestExecuteFailureWritesError(t *testing.T) {
 		[]string{"minecraft-ping", "-format", "xml"},
 		&stdout,
 		&stderr,
-		func(string, int, time.Duration, pingOptions) (int, error) {
+		func(endpoint, time.Duration, pingOptions) (int, error) {
 			return 99, nil
 		},
 	)
@@ -275,5 +324,43 @@ func TestExecuteFailureWritesError(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "expected text or json") {
 		t.Fatalf("execute() stderr = %q, expected format validation message", stderr.String())
+	}
+}
+
+func TestMainUsesExecuteExitCode(t *testing.T) {
+	originalArgs := mainArgs
+	originalStdout := mainStdout
+	originalStderr := mainStderr
+	originalExit := mainExit
+	t.Cleanup(func() {
+		mainArgs = originalArgs
+		mainStdout = originalStdout
+		mainStderr = originalStderr
+		mainExit = originalExit
+	})
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exitCode := -1
+
+	mainArgs = func() []string {
+		return []string{"minecraft-ping", "-format", "xml"}
+	}
+	mainStdout = &stdout
+	mainStderr = &stderr
+	mainExit = func(code int) {
+		exitCode = code
+	}
+
+	main()
+
+	if exitCode != 1 {
+		t.Fatalf("main() exit code = %d, want 1", exitCode)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("main() wrote stdout on failure: %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "expected text or json") {
+		t.Fatalf("main() stderr = %q, expected format validation message", stderr.String())
 	}
 }

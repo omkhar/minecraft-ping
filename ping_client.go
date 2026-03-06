@@ -38,9 +38,37 @@ const (
 
 var errVarIntTooLong = errors.New("varint is too long")
 
+var randomRead = rand.Read
+
 type pingOptions struct {
 	allowPrivateAddresses bool
 }
+
+type endpoint struct {
+	Host string
+	Port int
+}
+
+type endpointRoute struct {
+	Dial      endpoint
+	Handshake endpoint
+}
+
+type dnsResolver interface {
+	LookupSRV(ctx context.Context, service, proto, name string) (string, []*net.SRV, error)
+	LookupIP(ctx context.Context, network, host string) ([]net.IP, error)
+}
+
+type dialContextFunc func(ctx context.Context, network, address string) (net.Conn, error)
+
+type pingClient struct {
+	resolver    dnsResolver
+	dialContext dialContextFunc
+	tokenSource func() (uint64, error)
+	now         func() time.Time
+}
+
+var defaultPingClient = pingClient{}
 
 var nonPublicIPPrefixes = []netip.Prefix{
 	mustParsePrefix("0.0.0.0/8"),
@@ -66,22 +94,77 @@ var nonPublicIPPrefixes = []netip.Prefix{
 	mustParsePrefix("ff00::/8"),
 }
 
+func newEndpoint(host string, port int) endpoint {
+	return endpoint{
+		Host: strings.TrimSpace(host),
+		Port: port,
+	}
+}
+
+func (e endpoint) String() string {
+	return net.JoinHostPort(e.Host, strconv.Itoa(e.Port))
+}
+
+func (e endpoint) address() string {
+	return net.JoinHostPort(e.Host, strconv.Itoa(e.Port))
+}
+
+func (e endpoint) uint16Port() (uint16, error) {
+	return toUint16(e.Port)
+}
+
+func (e endpoint) validate() error {
+	if e.Host == "" {
+		return errors.New("server must not be empty")
+	}
+	if err := validateServerAddress(e.Host); err != nil {
+		return err
+	}
+	if e.Port < 1 || e.Port > 65535 {
+		return fmt.Errorf("invalid port: %d. port must be between 1 and 65535", e.Port)
+	}
+	return nil
+}
+
 func pingServer(server string, port int, timeout time.Duration) (int, error) {
-	return pingServerWithOptions(server, port, timeout, pingOptions{
+	return pingEndpointWithOptions(newEndpoint(server, port), timeout, pingOptions{
 		allowPrivateAddresses: false,
 	})
 }
 
 func pingServerWithOptions(server string, port int, timeout time.Duration, options pingOptions) (int, error) {
-	server = strings.TrimSpace(server)
-	if server == "" {
-		return 0, errors.New("server must not be empty")
+	return pingEndpointWithOptions(newEndpoint(server, port), timeout, options)
+}
+
+func pingEndpointWithOptions(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
+	return defaultPingClient.withDefaults().ping(target, timeout, options)
+}
+
+func (c pingClient) withDefaults() pingClient {
+	if c.resolver == nil {
+		c.resolver = net.DefaultResolver
 	}
-	if err := validateServerAddress(server); err != nil {
+	if c.dialContext == nil {
+		c.dialContext = defaultDialContext
+	}
+	if c.tokenSource == nil {
+		c.tokenSource = generatePingToken
+	}
+	if c.now == nil {
+		c.now = time.Now
+	}
+	return c
+}
+
+func defaultDialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	var dialer net.Dialer
+	return dialer.DialContext(ctx, network, address)
+}
+
+func (c pingClient) ping(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
+	target = newEndpoint(target.Host, target.Port)
+	if err := target.validate(); err != nil {
 		return 0, err
-	}
-	if port < 1 || port > 65535 {
-		return 0, fmt.Errorf("invalid port: %d. port must be between 1 and 65535", port)
 	}
 	if timeout <= 0 {
 		return 0, fmt.Errorf("invalid timeout: %s. timeout must be greater than 0", timeout)
@@ -90,49 +173,49 @@ func pingServerWithOptions(server string, port int, timeout time.Duration, optio
 		return 0, fmt.Errorf("invalid timeout: %s. timeout must be less than or equal to %s", timeout, maxAllowedTimeout)
 	}
 
-	resolvedHost, resolvedPort := resolveMinecraftEndpoint(server, port, timeout)
-
-	latency, err := pingMinecraftServer(resolvedHost, resolvedPort, server, timeout, options.allowPrivateAddresses)
+	route := c.resolveEndpoint(target, timeout)
+	latency, err := c.pingEndpoint(route, timeout, options.allowPrivateAddresses)
 	if err != nil {
-		if resolvedHost != server || resolvedPort != port {
-			return 0, fmt.Errorf(
-				"failed to ping server %s:%d (resolved to %s:%d): %w",
-				server,
-				port,
-				resolvedHost,
-				resolvedPort,
-				err,
-			)
+		if route.Dial != target {
+			return 0, fmt.Errorf("failed to ping server %s (resolved to %s): %w", target, route.Dial, err)
 		}
-		return 0, fmt.Errorf("failed to ping server %s:%d: %w", server, port, err)
+		return 0, fmt.Errorf("failed to ping server %s: %w", target, err)
 	}
 
 	return latency, nil
 }
 
-func resolveMinecraftEndpoint(server string, port int, timeout time.Duration) (string, int) {
-	if port != defaultMinecraftPort || net.ParseIP(server) != nil {
-		return server, port
+func (c pingClient) resolveEndpoint(target endpoint, timeout time.Duration) endpointRoute {
+	route := endpointRoute{
+		Dial:      target,
+		Handshake: target,
+	}
+
+	if target.Port != defaultMinecraftPort || net.ParseIP(target.Host) != nil {
+		return route
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	_, records, err := net.DefaultResolver.LookupSRV(ctx, "minecraft", "tcp", server)
+	_, records, err := c.resolver.LookupSRV(ctx, "minecraft", "tcp", target.Host)
 	if err != nil || len(records) == 0 {
-		return server, port
+		return route
 	}
 
-	target := strings.TrimSuffix(records[0].Target, ".")
-	if target == "" || records[0].Port == 0 {
-		return server, port
+	srvTarget := strings.TrimSuffix(records[0].Target, ".")
+	if srvTarget == "" || records[0].Port == 0 {
+		return route
 	}
 
-	return target, int(records[0].Port)
+	resolvedPort := int(records[0].Port)
+	route.Dial = endpoint{Host: srvTarget, Port: resolvedPort}
+	route.Handshake = endpoint{Host: target.Host, Port: resolvedPort}
+	return route
 }
 
-func pingMinecraftServer(server string, port int, handshakeHost string, timeout time.Duration, allowPrivateAddresses bool) (int, error) {
-	conn, err := dialMinecraftTCP(server, port, timeout, allowPrivateAddresses)
+func (c pingClient) pingEndpoint(route endpointRoute, timeout time.Duration, allowPrivateAddresses bool) (int, error) {
+	conn, err := c.dialMinecraftTCP(route.Dial, timeout, allowPrivateAddresses)
 	if err != nil {
 		return 0, err
 	}
@@ -142,12 +225,7 @@ func pingMinecraftServer(server string, port int, handshakeHost string, timeout 
 		return 0, err
 	}
 
-	handshakePort, err := toUint16(port)
-	if err != nil {
-		return 0, err
-	}
-
-	if err := sendHandshakePacket(conn, handshakeHost, handshakePort); err != nil {
+	if err := sendHandshakePacket(conn, route.Handshake); err != nil {
 		return 0, err
 	}
 	if err := sendStatusRequestPacket(conn); err != nil {
@@ -157,11 +235,11 @@ func pingMinecraftServer(server string, port int, handshakeHost string, timeout 
 		return 0, err
 	}
 
-	token, err := generatePingToken()
+	token, err := c.tokenSource()
 	if err != nil {
 		return 0, err
 	}
-	start := time.Now()
+	start := c.now()
 
 	if err := sendPingPacket(conn, token); err != nil {
 		return 0, err
@@ -170,7 +248,7 @@ func pingMinecraftServer(server string, port int, handshakeHost string, timeout 
 		return 0, err
 	}
 
-	latencyMs := int(time.Since(start) / time.Millisecond)
+	latencyMs := int(c.now().Sub(start) / time.Millisecond)
 	if latencyMs < 1 {
 		latencyMs = 1
 	}
@@ -192,52 +270,40 @@ func validateServerAddress(server string) error {
 	return nil
 }
 
-func dialMinecraftTCP(server string, port int, timeout time.Duration, allowPrivateAddresses bool) (net.Conn, error) {
+func (c pingClient) dialMinecraftTCP(target endpoint, timeout time.Duration, allowPrivateAddresses bool) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	join := func(host string) string {
-		return net.JoinHostPort(host, strconv.Itoa(port))
-	}
-
-	dialer := &net.Dialer{}
-
-	if parsedIP := net.ParseIP(server); parsedIP != nil {
+	if parsedIP := net.ParseIP(target.Host); parsedIP != nil {
 		if !allowPrivateAddresses && isNonPublicIPAddress(parsedIP) {
 			return nil, fmt.Errorf("refusing to connect to non-public address %s", parsedIP.String())
 		}
-		return dialer.DialContext(ctx, "tcp", join(parsedIP.String()))
+		return c.dialContext(ctx, "tcp", endpoint{Host: parsedIP.String(), Port: target.Port}.address())
 	}
 
-	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", server)
+	ips, err := c.resolver.LookupIP(ctx, "ip", target.Host)
 	if err != nil {
 		return nil, err
 	}
 	if len(ips) == 0 {
-		return nil, fmt.Errorf("no addresses resolved for %s", server)
+		return nil, fmt.Errorf("no addresses resolved for %s", target.Host)
 	}
 
-	type candidate struct {
-		addr string
-	}
-	candidates := make([]candidate, 0, len(ips))
+	candidates := make([]endpoint, 0, len(ips))
 	for _, ip := range ips {
 		ipString := ip.String()
-		if ipString == "" {
-			continue
-		}
 		if !allowPrivateAddresses && isNonPublicIPAddress(ip) {
 			continue
 		}
-		candidates = append(candidates, candidate{addr: join(ipString)})
+		candidates = append(candidates, endpoint{Host: ipString, Port: target.Port})
 	}
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("resolved only to non-public addresses for %s", server)
+		return nil, fmt.Errorf("resolved only to non-public addresses for %s", target.Host)
 	}
 
 	var lastErr error
 	for _, candidate := range candidates {
-		conn, dialErr := dialer.DialContext(ctx, "tcp", candidate.addr)
+		conn, dialErr := c.dialContext(ctx, "tcp", candidate.address())
 		if dialErr == nil {
 			return conn, nil
 		}
@@ -246,12 +312,14 @@ func dialMinecraftTCP(server string, port int, timeout time.Duration, allowPriva
 			break
 		}
 	}
+	return nil, finalizeDialError(lastErr)
+}
 
+func finalizeDialError(lastErr error) error {
 	if lastErr != nil {
-		return nil, lastErr
+		return lastErr
 	}
-
-	return nil, errors.New("failed to dial any resolved address")
+	return errors.New("failed to dial any resolved address")
 }
 
 func isNonPublicIPAddress(ip net.IP) bool {
@@ -287,18 +355,23 @@ func toUint16(value int) (uint16, error) {
 
 func generatePingToken() (uint64, error) {
 	var payload [8]byte
-	if _, err := rand.Read(payload[:]); err != nil {
+	if _, err := randomRead(payload[:]); err != nil {
 		return 0, fmt.Errorf("failed to generate ping token: %w", err)
 	}
 	return binary.BigEndian.Uint64(payload[:]), nil
 }
 
-func sendHandshakePacket(w io.Writer, host string, port uint16) error {
+func sendHandshakePacket(w io.Writer, target endpoint) error {
+	port, err := target.uint16Port()
+	if err != nil {
+		return err
+	}
+
 	var payload bytes.Buffer
 
 	writeVarInt(&payload, packetIDHandshake)
 	writeVarInt(&payload, statusProtocolVersion)
-	if err := writeString(&payload, host, maxHandshakeHostByteSize); err != nil {
+	if err := writeString(&payload, target.Host, maxHandshakeHostByteSize); err != nil {
 		return err
 	}
 
@@ -387,12 +460,9 @@ func writePacket(w io.Writer, payload []byte) error {
 	if len(payload) > maxPacketLength {
 		return fmt.Errorf("packet payload exceeds maximum size: %d", len(payload))
 	}
-	if len(payload) > math.MaxInt32 {
-		return fmt.Errorf("packet payload exceeds int32 max: %d", len(payload))
-	}
 
 	var packet bytes.Buffer
-	writeVarInt(&packet, int32(len(payload))) // #nosec G115 -- bounded by MaxInt32 check above
+	writeVarInt(&packet, int32(len(payload))) // #nosec G115 -- bounded by maxPacketLength
 	packet.Write(payload)
 
 	_, err := w.Write(packet.Bytes())
@@ -467,17 +537,24 @@ func readVarIntFromBytes(data []byte) (int32, int, error) {
 }
 
 func writeString(buf *bytes.Buffer, value string, maxBytes int) error {
-	raw := []byte(value)
-	if len(raw) > maxBytes {
-		return fmt.Errorf("string size %d exceeds max of %d bytes", len(raw), maxBytes)
-	}
-	if len(raw) > math.MaxInt32 {
-		return fmt.Errorf("string size %d exceeds int32 max", len(raw))
+	if err := validateStringByteLength(len(value), maxBytes); err != nil {
+		return err
 	}
 
-	writeVarInt(buf, int32(len(raw))) // #nosec G115 -- bounded by MaxInt32 check above
+	raw := []byte(value)
+	writeVarInt(buf, int32(len(raw))) // #nosec G115 -- bounded by validateStringByteLength
 	_, err := buf.Write(raw)
 	return err
+}
+
+func validateStringByteLength(length int, maxBytes int) error {
+	if length > maxBytes {
+		return fmt.Errorf("string size %d exceeds max of %d bytes", length, maxBytes)
+	}
+	if length > math.MaxInt32 {
+		return fmt.Errorf("string size %d exceeds int32 max", length)
+	}
+	return nil
 }
 
 func readStringFromBytes(data []byte, maxBytes int) (string, int, error) {
