@@ -1,1 +1,1 @@
-FROM itzg/minecraft-server:latest@sha256:675bb24fdce31a386c498cb60ffb7b04c25d48480c6b2445533e611dfbab39b4
+FROM itzg/minecraft-server:latest@sha256:338bd491c1408e36e1545faeacd560721581e1875db9ffe51f412672c965b5cf
