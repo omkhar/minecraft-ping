@@ -9,9 +9,7 @@ on:
       - synchronize
       - ready_for_review
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   dependabot:
@@ -21,15 +19,19 @@ jobs:
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.draft == false
+    env:
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      GH_TOKEN: ${{ secrets.AUTOMERGE_GH_TOKEN }}
     steps:
+      - name: Require automerge token
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "AUTOMERGE_GH_TOKEN must be configured so Dependabot merges trigger downstream workflows."
+            exit 1
+          fi
+
       - name: Auto-approve Dependabot PR
         run: gh pr review --approve "$PR_URL" || true
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge for Dependabot PR
         run: gh pr merge --auto --squash --delete-branch "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
