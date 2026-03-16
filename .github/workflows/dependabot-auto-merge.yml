@@ -15,6 +15,7 @@ jobs:
   dependabot:
     name: Auto-Merge Dependabot PRs
     runs-on: ubuntu-latest
+    environment: automerge
     if: >
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
