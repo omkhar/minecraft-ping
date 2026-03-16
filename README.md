@@ -1,5 +1,13 @@
 # minecraft-ping
 
+[![Dependabot Auto-Merge](https://github.com/omkhar/minecraft-ping/workflows/Dependabot%20Auto-Merge/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml)
+[![Dependency Review](https://github.com/omkhar/minecraft-ping/workflows/Dependency%20Review/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml)
+[![CI](https://github.com/omkhar/minecraft-ping/workflows/CI/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml)
+[![Mutation Nightly](https://github.com/omkhar/minecraft-ping/workflows/Mutation%20Nightly/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml)
+[![Security Baseline](https://github.com/omkhar/minecraft-ping/workflows/Security%20Baseline/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml)
+[![Semgrep](https://github.com/omkhar/minecraft-ping/workflows/Semgrep/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml)
+[![zizmor](https://github.com/omkhar/minecraft-ping/workflows/zizmor/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml)
+
 ## Overview
 Go service and CLI for pinging Minecraft servers and reporting latency/status.
 
