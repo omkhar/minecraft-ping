@@ -8,9 +8,6 @@ updates:
       timezone: "America/New_York"
     cooldown:
       default-days: 7
-      semver-major-days: 14
-      semver-minor-days: 7
-      semver-patch-days: 1
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(deps)"
@@ -27,9 +24,6 @@ updates:
       timezone: "America/New_York"
     cooldown:
       default-days: 7
-      semver-major-days: 14
-      semver-minor-days: 7
-      semver-patch-days: 1
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(deps)"
@@ -46,9 +40,6 @@ updates:
       timezone: "America/New_York"
     cooldown:
       default-days: 7
-      semver-major-days: 14
-      semver-minor-days: 7
-      semver-patch-days: 1
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(deps)"
