@@ -4,9 +4,13 @@ on:
   pull_request:
     branches: ["main"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: read # Read the pull request manifest diff for dependency-review-action.
 
 jobs:
   dependency-review:
