@@ -3,6 +3,7 @@ name: Dependabot Auto-Merge
 
 on:
   workflow_run:
+    # zizmor: ignore[dangerous-triggers] This workflow reads PR metadata only and never checks out or executes untrusted code.
     workflows: ["CI"]
     types:
       - completed
