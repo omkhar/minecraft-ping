@@ -1,5 +1,5 @@
 ---
-name: Dependabot Auto-Merge
+name: PR Auto-Merge
 
 on:
   workflow_run:
@@ -15,8 +15,8 @@ concurrency:
 permissions: {}
 
 jobs:
-  dependabot:
-    name: Auto-Merge Dependabot PRs
+  pr-auto-merge:
+    name: Auto-Approve And Merge PRs
     runs-on: ubuntu-latest
     environment: automerge
     if: >
@@ -31,7 +31,7 @@ jobs:
       - name: Require automerge token
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
-            echo "AUTOMERGE_GH_TOKEN must be configured so Dependabot merges trigger downstream workflows."
+            echo "AUTOMERGE_GH_TOKEN must be configured so PR merges trigger downstream workflows."
             exit 1
           fi
 
@@ -40,21 +40,24 @@ jobs:
         env:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          read -r author_login author_is_bot head_ref head_owner is_draft <<EOF
-          $(gh pr view "$PR_NUMBER" --json author,isDraft,headRefName,headRepositoryOwner --jq '[.author.login, (.author.is_bot | tostring), .headRefName, .headRepositoryOwner.login, (.isDraft | tostring)] | @tsv')
+          read -r head_ref head_owner is_draft mergeable <<EOF
+          $(gh pr view "$PR_NUMBER" --json isDraft,headRefName,headRepositoryOwner,mergeable --jq '[.headRefName, .headRepositoryOwner.login, (.isDraft | tostring), .mergeable] | @tsv')
           EOF
 
-          if [[ "${author_login}" != "app/dependabot" || "${author_is_bot}" != "true" || "${head_ref}" != dependabot/* || "${head_owner}" != "${REPO_OWNER}" || "${is_draft}" == "true" ]]; then
+          if [[ "${head_owner}" != "${REPO_OWNER}" || "${is_draft}" == "true" || "${mergeable}" != "MERGEABLE" ]]; then
+            echo "Skipping PR ${PR_NUMBER}: only non-draft, mergeable PRs from branches in ${REPO_OWNER} are auto-approved."
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "eligible=true" >> "$GITHUB_OUTPUT"
 
-      - name: Auto-approve Dependabot PR
+      - name: Auto-approve PR
         if: steps.eligibility.outputs.eligible == 'true'
+        # Use a distinct bot/PAT if branch protection requires approvals; GitHub will not
+        # count a user's self-approval on their own pull request.
         run: gh pr review --approve "$PR_URL" || true
 
-      - name: Enable auto-merge for Dependabot PR
+      - name: Enable auto-merge for PR
         if: steps.eligibility.outputs.eligible == 'true'
         run: gh pr merge --auto --squash --delete-branch "$PR_URL"
