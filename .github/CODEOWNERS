@@ -1,0 +1,3 @@
+# Single-maintainer default: all changes require the repository owner's review.
+* @omkhar
+/.github/CODEOWNERS @omkhar
