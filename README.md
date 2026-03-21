@@ -1,13 +1,20 @@
 # minecraft-ping
 
-[![PR Auto-Merge](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml)
-[![Dependency Review](https://github.com/omkhar/minecraft-ping/workflows/Dependency%20Review/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml)
-[![CI](https://github.com/omkhar/minecraft-ping/workflows/CI/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml)
-[![Mutation Nightly](https://github.com/omkhar/minecraft-ping/workflows/Mutation%20Nightly/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml)
-[![Release](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml)
-[![Security Baseline](https://github.com/omkhar/minecraft-ping/workflows/Security%20Baseline/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml)
-[![Semgrep](https://github.com/omkhar/minecraft-ping/workflows/Semgrep/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml)
-[![zizmor](https://github.com/omkhar/minecraft-ping/workflows/zizmor/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml)
+## Actions
+
+Current GitHub Actions workflow status:
+
+- [CI](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml): [![CI](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml)
+- [Dependabot Updates](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/dependabot-updates): [![Dependabot Updates](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/dependabot-updates/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/dependabot-updates)
+- [Dependency Graph](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/update-graph): [![Dependency Graph](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/update-graph/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/update-graph)
+- [Dependency Review](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml): [![Dependency Review](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml)
+- [Mutation Nightly](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml): [![Mutation Nightly](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml)
+- [OSV Scanner](https://github.com/omkhar/minecraft-ping/actions/workflows/osv-scanner.yml): [![OSV Scanner](https://github.com/omkhar/minecraft-ping/actions/workflows/osv-scanner.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/osv-scanner.yml)
+- [PR Auto-Merge](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml): [![PR Auto-Merge](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml)
+- [Release](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml): [![Release](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml)
+- [Security Baseline](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml): [![Security Baseline](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml)
+- [Semgrep](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml): [![Semgrep](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml)
+- [zizmor](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml): [![zizmor](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml)
 
 ## Overview
 Go service and CLI for pinging Minecraft servers and reporting latency/status.
