@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
@@ -24,6 +23,8 @@ jobs:
     environment: release
     permissions:
       checks: read # Query Main Verify check runs on the tagged main commit before publishing.
+      attestations: write # Publish GitHub artifact attestations for the release artifacts.
+      artifact-metadata: write # Required by GitHub artifact attestations for file subjects.
       contents: write # Create the GitHub release and upload release assets for the pushed tag.
       id-token: write # Mint the OIDC identity token used for keyless Cosign signing.
     steps:
@@ -123,6 +124,71 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate GitHub build provenance attestations
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-checksums: dist/checksums.txt
+
+      - name: Verify GitHub build provenance attestations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          mapfile -t subjects < <(
+            find dist -maxdepth 1 -type f -name 'minecraft-ping_*' ! -name '*.sigstore.json' | sort
+          )
+
+          if [[ "${#subjects[@]}" -eq 0 ]]; then
+            echo "No release artifacts found to verify." >&2
+            exit 1
+          fi
+
+          for subject in "${subjects[@]}"; do
+            gh attestation verify "${subject}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --source-ref "${GITHUB_REF}" \
+              --deny-self-hosted-runners >/dev/null
+          done
+
+      - name: Download GitHub provenance bundles
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          mkdir -p dist/attestation
+          mapfile -t subjects < <(
+            find dist -maxdepth 1 -type f -name 'minecraft-ping_*' ! -name '*.sigstore.json' | sort
+          )
+
+          if [[ "${#subjects[@]}" -eq 0 ]]; then
+            echo "No release artifacts found to download attestations for." >&2
+            exit 1
+          fi
+
+          for subject in "${subjects[@]}"; do
+            digest="$(sha256sum "${subject}" | awk '{print $1}')"
+            bundle="sha256:${digest}.jsonl"
+            gh attestation download "${subject}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --predicate-type "https://slsa.dev/provenance/v1" >/dev/null
+            mv "${bundle}" "dist/attestation/$(basename "${subject}").provenance.jsonl"
+          done
+
+      - name: Upload GitHub provenance bundle assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          assets=(dist/attestation/*.provenance.jsonl)
+          if [[ "${#assets[@]}" -eq 0 ]]; then
+            echo "No provenance bundles were downloaded." >&2
+            exit 1
+          fi
+
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
+
       - name: Generate SPDX SBOMs
         shell: bash
         run: |
@@ -162,22 +228,4 @@ jobs:
         run: |
           shopt -s nullglob
           assets=(dist/sbom/*.spdx.json dist/sbom/*.spdx.json.sigstore.json)
-          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
-
-      - name: Generate and verify Sigstore release attestations
-        shell: bash
-        run: scripts/release_attest.sh dist
-
-      - name: Upload Sigstore attestation assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          shopt -s nullglob
-          assets=(dist/attestation/*.sigstore.json)
-          if [[ "${#assets[@]}" -eq 0 ]]; then
-            echo "No attestation bundles were generated." >&2
-            exit 1
-          fi
-
           gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber

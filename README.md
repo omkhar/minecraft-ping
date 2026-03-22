@@ -106,3 +106,5 @@ Release integration harness:
 
 - Staging backend source: `cmd/staging-server`
 - Release harness: `cmd/release-integration`
+
+Releases are published only by the GitHub tag-triggered release workflow. That workflow is the canonical build provenance source and emits signed SBOM assets plus GitHub artifact attestations for the published binaries and packages.
