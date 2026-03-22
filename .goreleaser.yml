@@ -33,6 +33,32 @@ archives:
       - goos: windows
         formats:
           - zip
+    files:
+      - LICENSE
+      - README.md
+
+nfpms:
+  - id: linux-packages
+    ids:
+      - minecraft-ping
+    package_name: minecraft-ping
+    vendor: Omkhar Arasaratnam
+    homepage: https://github.com/omkhar/minecraft-ping
+    maintainer: Omkhar Arasaratnam <omkhar@gmail.com>
+    description: CLI that measures Minecraft Java Edition server latency using the native handshake, status, and ping/pong flow.
+    license: Apache 2.0
+    section: utils
+    priority: optional
+    bindir: /usr/bin
+    formats:
+      - deb
+      - rpm
+      - apk
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/minecraft-ping/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/minecraft-ping/README.md
 
 checksum:
   name_template: checksums.txt

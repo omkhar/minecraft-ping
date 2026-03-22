@@ -67,13 +67,15 @@ scripts/staging_smoke.sh
 - `govulncheck`
 - `gosec`
 - `go build`
-- `go test`
+- native `go test` coverage on Linux, macOS, and Windows for `amd64` and `arm64`
+- a GoReleaser snapshot build that exercises release archives and Linux packages before tagging
+- Linux package install smoke tests on Debian, Ubuntu, Fedora, and Alpine for `amd64` and `arm64`
 - a container-backed dual-stack smoke test via `scripts/staging_smoke.sh`
 - diff-scoped mutation testing on pull requests
 
 The staging smoke runs one IPv4 ping (`-4`) and one IPv6 ping (`-6`) against the same Minecraft container. The IPv6 path is exposed through a local `::1` relay to avoid Docker runtime differences in direct IPv6 loopback publishing.
 
-`Release` (`.github/workflows/release.yml`) uses GoReleaser to build release archives, inject the release version for `-version`, publish GitHub release assets, and sign them with keyless `cosign`.
+`Release` (`.github/workflows/release.yml`) uses GoReleaser to build signed archives for macOS, Linux, and Windows, build signed Linux `.deb`, `.rpm`, and `.apk` packages, inject the release version for `-version`, and publish the release assets on GitHub.
 
 ## Notes
 

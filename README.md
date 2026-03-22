@@ -93,8 +93,8 @@ Local development builds print `minecraft-ping dev` for `-version`. Tagged relea
 
 ## CI And Security
 
-- `CI`: runs `govulncheck`, `gosec`, `go build`, `go test`, and a container-backed dual-stack smoke test; it also runs diff-scoped mutation testing on pull requests.
-- `Release`: builds cross-platform archives with GoReleaser, injects the release version used by `-version`, publishes GitHub releases, and signs all artifacts with keyless `cosign`.
+- `CI`: runs `govulncheck`, `gosec`, `go build`, native `go test` coverage on Linux, macOS, and Windows for `amd64` and `arm64`, a release-snapshot packaging build, Linux package install smoke tests on Debian, Ubuntu, Fedora, and Alpine for `amd64` and `arm64`, and a container-backed dual-stack smoke test; it also runs diff-scoped mutation testing on pull requests.
+- `Release`: builds cross-platform archives plus Linux distro packages with GoReleaser, injects the release version used by `-version`, publishes GitHub release assets, and signs all artifacts with keyless `cosign`.
 - `OSV Scanner`: checks dependency advisories against OSV.
 - `Security Baseline`: runs `gitleaks`.
 - `Dependency Review`: enforces PR dependency policy checks.
@@ -112,7 +112,8 @@ The staging smoke is dual-stack. It runs a Minecraft container, verifies an IPv4
 ## Releases
 
 - Tag `vX.Y.Z` on `main` to publish a release.
-- Release assets include `darwin`, `linux`, and `windows` archives for `amd64` and `arm64`.
+- Release assets include signed archives for `darwin`, `linux`, and `windows` on `amd64` and `arm64`.
+- Linux release assets also include signed `.deb`, `.rpm`, and `.apk` packages for `amd64` and `arm64`.
 - Every uploaded asset includes a matching `.sigstore.json` bundle.
 - `checksums.txt` is also signed and published.
 
