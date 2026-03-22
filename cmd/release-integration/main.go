@@ -45,6 +45,8 @@ type pingResult struct {
 	LatencyMS int64  `json:"latency_ms"`
 }
 
+const maxExtractedBinarySize int64 = 64 << 20
+
 func main() {
 	cfg := config{}
 
@@ -141,6 +143,7 @@ func startBackend(ctx context.Context, cfg config, cleanup *[]func()) error {
 func startBinaryBackend(ctx context.Context, cfg config, cleanup *[]func()) error {
 	log.Printf("starting staging backend %s", cfg.serverBinary)
 
+	// #nosec G204 -- staging server binary path is produced by trusted CI/local integration setup.
 	cmd := exec.CommandContext(
 		ctx,
 		cfg.serverBinary,
@@ -254,9 +257,18 @@ func extractZipBinary(archivePath, tempDir, binaryName string) (string, error) {
 	}
 	defer reader.Close()
 
+	targetRoot, err := os.OpenRoot(tempDir)
+	if err != nil {
+		return "", fmt.Errorf("open temp dir root: %w", err)
+	}
+	defer targetRoot.Close()
+
 	for _, file := range reader.File {
 		if filepath.Base(file.Name) != binaryName {
 			continue
+		}
+		if file.UncompressedSize64 == 0 || file.UncompressedSize64 > uint64(maxExtractedBinarySize) {
+			return "", fmt.Errorf("binary %q in %s has invalid size %d", binaryName, archivePath, file.UncompressedSize64)
 		}
 
 		source, err := file.Open()
@@ -266,16 +278,19 @@ func extractZipBinary(archivePath, tempDir, binaryName string) (string, error) {
 		defer source.Close()
 
 		targetPath := filepath.Join(tempDir, binaryName)
-		target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+		target, err := targetRoot.OpenFile(binaryName, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 		if err != nil {
 			return "", fmt.Errorf("create extracted binary: %w", err)
 		}
-		if _, err := io.Copy(target, source); err != nil {
-			target.Close()
+		if err := copyWithLimit(target, source, maxExtractedBinarySize); err != nil {
+			_ = target.Close()
 			return "", fmt.Errorf("extract zipped binary: %w", err)
 		}
 		if err := target.Close(); err != nil {
 			return "", fmt.Errorf("close extracted binary: %w", err)
+		}
+		if err := targetRoot.Chmod(binaryName, 0o700); err != nil {
+			return "", fmt.Errorf("chmod extracted binary: %w", err)
 		}
 		return targetPath, nil
 	}
@@ -284,7 +299,7 @@ func extractZipBinary(archivePath, tempDir, binaryName string) (string, error) {
 }
 
 func extractTarGzBinary(archivePath, tempDir, binaryName string) (string, error) {
-	archive, err := os.Open(archivePath)
+	archive, err := openReadOnlyFile(archivePath)
 	if err != nil {
 		return "", fmt.Errorf("open tar.gz archive: %w", err)
 	}
@@ -297,6 +312,12 @@ func extractTarGzBinary(archivePath, tempDir, binaryName string) (string, error)
 	defer gzipReader.Close()
 
 	tarReader := tar.NewReader(gzipReader)
+	targetRoot, err := os.OpenRoot(tempDir)
+	if err != nil {
+		return "", fmt.Errorf("open temp dir root: %w", err)
+	}
+	defer targetRoot.Close()
+
 	for {
 		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
@@ -308,18 +329,24 @@ func extractTarGzBinary(archivePath, tempDir, binaryName string) (string, error)
 		if filepath.Base(header.Name) != binaryName {
 			continue
 		}
+		if header.Size <= 0 || header.Size > maxExtractedBinarySize {
+			return "", fmt.Errorf("binary %q in %s has invalid size %d", binaryName, archivePath, header.Size)
+		}
 
 		targetPath := filepath.Join(tempDir, binaryName)
-		target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
+		target, err := targetRoot.OpenFile(binaryName, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 		if err != nil {
 			return "", fmt.Errorf("create extracted binary: %w", err)
 		}
-		if _, err := io.Copy(target, tarReader); err != nil {
-			target.Close()
+		if _, err := io.CopyN(target, tarReader, header.Size); err != nil {
+			_ = target.Close()
 			return "", fmt.Errorf("extract tarred binary: %w", err)
 		}
 		if err := target.Close(); err != nil {
 			return "", fmt.Errorf("close extracted binary: %w", err)
+		}
+		if err := targetRoot.Chmod(binaryName, 0o700); err != nil {
+			return "", fmt.Errorf("chmod extracted binary: %w", err)
 		}
 		return targetPath, nil
 	}
@@ -334,7 +361,7 @@ func loadImage(ctx context.Context, containerCLI, archivePath string) error {
 
 	log.Printf("loading image archive %s with %s", archivePath, containerCLI)
 
-	imageArchive, err := os.Open(archivePath)
+	imageArchive, err := openReadOnlyFile(archivePath)
 	if err != nil {
 		return fmt.Errorf("open image archive: %w", err)
 	}
@@ -346,6 +373,7 @@ func loadImage(ctx context.Context, containerCLI, archivePath string) error {
 	}
 	defer gzipReader.Close()
 
+	// #nosec G204 -- container CLI comes from trusted CI/local test configuration for this integration harness.
 	cmd := exec.CommandContext(ctx, containerCLI, "load")
 	cmd.Stdin = gzipReader
 	cmd.Stdout = os.Stdout
@@ -357,6 +385,7 @@ func loadImage(ctx context.Context, containerCLI, archivePath string) error {
 }
 
 func removeContainer(ctx context.Context, containerCLI, containerName string) error {
+	// #nosec G204 -- container CLI and name are controlled by the integration harness configuration.
 	cmd := exec.CommandContext(ctx, containerCLI, "rm", "-f", containerName)
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
@@ -374,6 +403,7 @@ func removeContainer(ctx context.Context, containerCLI, containerName string) er
 func startContainer(ctx context.Context, cfg config) error {
 	log.Printf("starting minecraft container %s using %s", cfg.containerName, cfg.containerCLI)
 
+	// #nosec G204 -- image tag and container CLI are chosen by CI/local integration configuration.
 	cmd := exec.CommandContext(
 		ctx,
 		cfg.containerCLI,
@@ -399,7 +429,7 @@ func waitForTCP(ctx context.Context, network, address string) error {
 		dialer := net.Dialer{Timeout: 2 * time.Second}
 		conn, err := dialer.DialContext(ctx, network, address)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil
 		}
 		select {
@@ -417,6 +447,7 @@ func runProbe(ctx context.Context, binaryPath, host string, port int, timeout ti
 	commandCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
+	// #nosec G204 -- extracted binary path is selected by the harness from local release artifacts under test.
 	cmd := exec.CommandContext(
 		commandCtx,
 		binaryPath,
@@ -461,6 +492,7 @@ func newIPv6Relay(listenHost string, listenPort int, targetHost string, targetPo
 				return nil
 			}
 			if err := rawConn.Control(func(fd uintptr) {
+				// #nosec G115 -- raw socket file descriptors fit in int on supported unix platforms.
 				controlErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 1)
 			}); err != nil {
 				return err
@@ -526,4 +558,33 @@ func (r *ipv6Relay) close() {
 	}
 	_ = r.listener.Close()
 	r.wg.Wait()
+}
+
+func openReadOnlyFile(path string) (*os.File, error) {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := root.Open(filepath.Base(path))
+	if err != nil {
+		_ = root.Close()
+		return nil, err
+	}
+	if err := root.Close(); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return file, nil
+}
+
+func copyWithLimit(dst io.Writer, src io.Reader, limit int64) error {
+	written, err := io.Copy(dst, io.LimitReader(src, limit+1))
+	if err != nil {
+		return err
+	}
+	if written > limit {
+		return fmt.Errorf("copied %d bytes, exceeds limit %d", written, limit)
+	}
+	return nil
 }

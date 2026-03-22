@@ -366,7 +366,7 @@ func readStringFromBytes(payload []byte, maxBytes int) (string, int, error) {
 	if stringLength < 0 {
 		return "", 0, fmt.Errorf("invalid string length: %d", stringLength)
 	}
-	if stringLength > int32(maxBytes) {
+	if int64(stringLength) > int64(maxBytes) {
 		return "", 0, fmt.Errorf("string length %d exceeds limit %d", stringLength, maxBytes)
 	}
 
@@ -385,6 +385,7 @@ func readStringFromBytes(payload []byte, maxBytes int) (string, int, error) {
 func writeVarInt(w io.Writer, value int32) {
 	var buf [5]byte
 	n := 0
+	// #nosec G115 -- callers only pass non-negative protocol constants and checked payload lengths.
 	v := uint32(value)
 	for {
 		temp := byte(v & 0x7F)
@@ -412,12 +413,17 @@ func writeString(w io.Writer, value string, maxBytes int) error {
 		return fmt.Errorf("string length %d exceeds int32", len(value))
 	}
 
+	// #nosec G115 -- len(value) is bounded above by math.MaxInt32 just above.
 	writeVarInt(w, int32(len(value)))
 	_, err := io.WriteString(w, value)
 	return err
 }
 
 func Probe(network, host string, port int, timeout time.Duration) error {
+	if port < 0 || port > math.MaxUint16 {
+		return fmt.Errorf("invalid port %d", port)
+	}
+
 	address := net.JoinHostPort(host, fmt.Sprint(port))
 	dialer := net.Dialer{Timeout: timeout}
 	conn, err := dialer.Dial(network, address)
@@ -438,6 +444,7 @@ func Probe(network, host string, port int, timeout time.Duration) error {
 	}
 
 	var portBytes [2]byte
+	// #nosec G115 -- port range is validated above.
 	binary.BigEndian.PutUint16(portBytes[:], uint16(port))
 	handshake.Write(portBytes[:])
 	writeVarInt(&handshake, nextStateStatus)
