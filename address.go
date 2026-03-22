@@ -29,13 +29,6 @@ func (c dialCandidate) String() string {
 	return c.address.String()
 }
 
-func (c dialCandidate) endpoint() endpoint {
-	return endpoint{
-		Host: c.address.Addr().String(),
-		Port: int(c.address.Port()),
-	}
-}
-
 func dialCandidateForLiteralIP(target endpoint, options pingOptions) ([]dialCandidate, error) {
 	addr, ok := target.literalIP()
 	if !ok {

@@ -179,6 +179,10 @@ func remoteAddrPort(addr net.Addr) netip.AddrPort {
 	if portErr != nil {
 		return netip.AddrPort{}
 	}
+	port16, portErr := toUint16(port)
+	if portErr != nil {
+		return netip.AddrPort{}
+	}
 
-	return netip.AddrPortFrom(ip.Unmap(), uint16(port))
+	return netip.AddrPortFrom(ip.Unmap(), port16)
 }
