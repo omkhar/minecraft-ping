@@ -34,6 +34,8 @@ jobs:
           persist-credentials: false
 
       - name: Validate release tag and target commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
@@ -41,7 +43,7 @@ jobs:
             exit 1
           fi
 
-          git fetch origin main --tags --force
+          git fetch "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" main --tags --force
 
           if ! git rev-parse "${GITHUB_REF_NAME}^{tag}" >/dev/null 2>&1; then
             echo "Release tags must be annotated." >&2
