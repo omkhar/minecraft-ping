@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/netip"
 	"strings"
 	"testing"
@@ -103,6 +104,18 @@ func TestParseCLIConfigRejectsInvalidInputs(t *testing.T) {
 		{"--java", "--bedrock", "example.com"},
 		{"-j", "-c", "2", "example.com"},
 		{"--edition", "pocket", "example.com"},
+		{"--edition", "", "example.com"},
+		{"--edition=", "example.com"},
+		{"--java=bedrock", "example.com"},
+		{"--bedrock=java", "example.com"},
+		{"--help=wat"},
+		{"--version=wat"},
+		{"-i", "NaN", "example.com"},
+		{"-i", "Inf", "example.com"},
+		{"-i", "1e20", "example.com"},
+		{"-i", "9223372036.854777", "example.com"},
+		{"-w", "NaN", "example.com"},
+		{"-W", "NaN", "example.com"},
 		{"-Z", "example.com"},
 	}
 
@@ -110,6 +123,33 @@ func TestParseCLIConfigRejectsInvalidInputs(t *testing.T) {
 		if _, status := parseCLIConfig(args); status != parseStatusInvalid {
 			t.Fatalf("parseCLIConfig(%v) status = %v, want invalid", args, status)
 		}
+	}
+}
+
+func TestParseSecondsDurationRejectsOverflowBoundary(t *testing.T) {
+	if _, ok := parseSecondsDuration("9223372036.854777"); ok {
+		t.Fatal("parseSecondsDuration() accepted overflowing duration")
+	}
+	if _, ok := parseSecondsDuration("9223372036.8547758071"); ok {
+		t.Fatal("parseSecondsDuration() accepted exact-overflow duration")
+	}
+}
+
+func TestParseSecondsDurationPreservesNanosecondBoundaries(t *testing.T) {
+	duration, ok := parseSecondsDuration("0.000000001")
+	if !ok {
+		t.Fatal("parseSecondsDuration() rejected 1ns duration")
+	}
+	if duration != time.Nanosecond {
+		t.Fatalf("duration = %s, want 1ns", duration)
+	}
+
+	duration, ok = parseSecondsDuration("9223372036.854775807")
+	if !ok {
+		t.Fatal("parseSecondsDuration() rejected max int64 duration")
+	}
+	if duration != time.Duration(math.MaxInt64) {
+		t.Fatalf("duration = %d, want %d", duration, time.Duration(math.MaxInt64))
 	}
 }
 
@@ -138,15 +178,28 @@ func TestRunWithRuntimeWritesUsageOnInvalidArgv(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	rc := runWithRuntime([]string{"minecraft-ping", "-j", "-c", "2", "example.com"}, &stdout, &stderr, defaultCLIRuntime())
-	if rc != 2 {
-		t.Fatalf("rc = %d, want 2", rc)
+	tests := [][]string{
+		{"minecraft-ping", "-j", "-c", "2", "example.com"},
+		{"minecraft-ping", "-W", "NaN", "example.com"},
+		{"minecraft-ping", "--edition", "", "example.com"},
+		{"minecraft-ping", "--help=wat"},
+		{"minecraft-ping", "--edition=", "example.com"},
 	}
-	if !strings.Contains(stdout.String(), "Usage: minecraft-ping [options] destination") {
-		t.Fatalf("stdout = %q", stdout.String())
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
+
+	for _, argv := range tests {
+		stdout.Reset()
+		stderr.Reset()
+
+		rc := runWithRuntime(argv, &stdout, &stderr, defaultCLIRuntime())
+		if rc != 2 {
+			t.Fatalf("runWithRuntime(%v) rc = %d, want 2", argv, rc)
+		}
+		if !strings.Contains(stdout.String(), "Usage: minecraft-ping [options] destination") {
+			t.Fatalf("runWithRuntime(%v) stdout = %q", argv, stdout.String())
+		}
+		if stderr.Len() != 0 {
+			t.Fatalf("runWithRuntime(%v) stderr = %q, want empty", argv, stderr.String())
+		}
 	}
 }
 
