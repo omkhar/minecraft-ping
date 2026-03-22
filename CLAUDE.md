@@ -34,8 +34,8 @@ go test ./... -run=^$ -fuzz=FuzzReadVarIntFromBytes -fuzztime=30s
 go test ./... -run=^$ -fuzz=FuzzReadStringFromBytes -fuzztime=30s
 go test ./... -run=^$ -fuzz=FuzzReadPacket -fuzztime=30s
 
-# Container-backed staging smoke
-scripts/staging_smoke.sh
+# Final release-binary integration
+scripts/run_release_integration.sh
 ```
 
 ## Architecture
@@ -50,6 +50,8 @@ scripts/staging_smoke.sh
 - `minecraft-ping_test.go` — end-to-end protocol, resolution, and dialing tests with fakes
 - `minecraft_ping_cli_test.go` — CLI behavior tests for help, version, output, and exit paths
 - `ping_fuzz_test.go` — fuzz targets for parser robustness
+- `cmd/staging-server` — portable staging backend that implements the Minecraft status and ping/pong protocol used by the final integration gate
+- `cmd/release-integration` — archive-aware integration harness for executing release binaries against either the native staging backend or the staging container
 
 ## CLI Behavior
 
@@ -70,10 +72,10 @@ scripts/staging_smoke.sh
 - native `go test` coverage on Linux, macOS, and Windows for `amd64` and `arm64`
 - a GoReleaser snapshot build that exercises release archives and Linux packages before tagging
 - Linux package install smoke tests on Debian, Ubuntu, Fedora, and Alpine for `amd64` and `arm64`
-- a container-backed dual-stack smoke test via `scripts/staging_smoke.sh`
+- a final dual-stack release integration matrix that runs every released binary against the staging target with both `-4` and `-6`
 - diff-scoped mutation testing on pull requests
 
-The staging smoke runs one IPv4 ping (`-4`) and one IPv6 ping (`-6`) against the same Minecraft container. The IPv6 path is exposed through a local `::1` relay to avoid Docker runtime differences in direct IPv6 loopback publishing.
+The final integration harness runs a native staging backend everywhere so every OS and architecture is exercised by the real released binary. On Linux it also validates the containerized form of that same backend, and the IPv6 path is exposed through a local `::1` relay to avoid Docker runtime differences in direct IPv6 loopback publishing.
 
 `Release` (`.github/workflows/release.yml`) uses GoReleaser to build signed archives for macOS, Linux, and Windows, build signed Linux `.deb`, `.rpm`, and `.apk` packages, inject the release version for `-version`, and publish the release assets on GitHub.
 

@@ -69,26 +69,6 @@ jobs:
       - name: Build
         run: go build -v ./...
 
-  deploy-staging:
-    name: deploy-staging
-    needs: ci-build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Build pinned staging container image
-        run: docker build -f docker/staging-minecraft.Dockerfile -t minecraft-staging-image:ci .
-      - name: Export staging image artifact
-        run: docker save minecraft-staging-image:ci | gzip > minecraft-staging-image.tar.gz
-      - name: Upload staging image artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: minecraft-staging-image
-          path: minecraft-staging-image.tar.gz
-          retention-days: 1
-          compression-level: 0
-
   ci-test:
     name: ci-test
     needs: ci-build
@@ -193,77 +173,44 @@ jobs:
           RELEASE_ARCH: ${{ matrix.arch }}
         run: scripts/release_linux_package_smoke.sh dist "$RELEASE_ARCH"
 
-  release-archive-smoke:
-    name: release-archive-smoke (${{ matrix.name }})
+  release-binary-integration:
+    name: release-binary-integration (${{ matrix.name }})
     needs: release-snapshot
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          - name: linux-amd64
+            runner: ubuntu-latest
+            backend: container
+            artifact_glob: minecraft-ping_*_Linux_amd64.tar.gz
+            binary_name: minecraft-ping
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            backend: container
+            artifact_glob: minecraft-ping_*_Linux_arm64.tar.gz
+            binary_name: minecraft-ping
           - name: macos-amd64
             runner: macos-15-intel
+            backend: binary
             artifact_glob: minecraft-ping_*_Darwin_amd64.tar.gz
             binary_name: minecraft-ping
           - name: macos-arm64
             runner: macos-latest
+            backend: binary
             artifact_glob: minecraft-ping_*_Darwin_arm64.tar.gz
             binary_name: minecraft-ping
           - name: windows-amd64
             runner: windows-latest
+            backend: binary
             artifact_glob: minecraft-ping_*_Windows_amd64.zip
             binary_name: minecraft-ping.exe
           - name: windows-arm64
             runner: windows-11-arm
+            backend: binary
             artifact_glob: minecraft-ping_*_Windows_arm64.zip
             binary_name: minecraft-ping.exe
-    steps:
-      - name: Download snapshot release artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: release-dist
-          path: dist
-      - name: Smoke test Unix archives
-        if: runner.os != 'Windows'
-        shell: bash
-        env:
-          RELEASE_ARCHIVE_GLOB: ${{ matrix.artifact_glob }}
-          RELEASE_BINARY_NAME: ${{ matrix.binary_name }}
-        run: |
-          archive="$(find dist -maxdepth 1 -type f -name "$RELEASE_ARCHIVE_GLOB" | sort | head -n 1)"
-          if [[ -z "$archive" ]]; then
-            echo "missing archive for pattern $RELEASE_ARCHIVE_GLOB" >&2
-            exit 1
-          fi
-          tmpdir="$(mktemp -d)"
-          tar -xzf "$archive" -C "$tmpdir"
-          "$tmpdir/$RELEASE_BINARY_NAME" -version
-          "$tmpdir/$RELEASE_BINARY_NAME" -help >/dev/null
-      - name: Smoke test Windows archives
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          RELEASE_ARCHIVE_GLOB: ${{ matrix.artifact_glob }}
-          RELEASE_BINARY_NAME: ${{ matrix.binary_name }}
-        run: |
-          $archive = Get-ChildItem dist -Filter $env:RELEASE_ARCHIVE_GLOB | Select-Object -First 1
-          if (-not $archive) {
-            Write-Error "missing archive for pattern $env:RELEASE_ARCHIVE_GLOB"
-          }
-          $tmpdir = Join-Path $env:RUNNER_TEMP 'release-archive-smoke'
-          if (Test-Path $tmpdir) {
-            Remove-Item -Recurse -Force $tmpdir
-          }
-          Expand-Archive -Path $archive.FullName -DestinationPath $tmpdir
-          & (Join-Path $tmpdir $env:RELEASE_BINARY_NAME) -version
-          & (Join-Path $tmpdir $env:RELEASE_BINARY_NAME) -help | Out-Null
-
-  staging-smoke:
-    name: staging-smoke
-    needs:
-      - ci-test
-      - deploy-staging
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -273,18 +220,56 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Download staging image artifact
+      - name: Download snapshot release artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: minecraft-staging-image
-          path: .
-      - name: Load staging image
-        run: gunzip -c minecraft-staging-image.tar.gz | docker load
-
-      - name: Run container-backed integration smoke
+          name: release-dist
+          path: dist
+      - name: Build staging backend
+        if: matrix.backend == 'binary' && runner.os != 'Windows'
+        shell: bash
+        run: go build -o "$RUNNER_TEMP/minecraft-staging-server" ./cmd/staging-server
+      - name: Build staging backend (Windows)
+        if: matrix.backend == 'binary' && runner.os == 'Windows'
+        shell: pwsh
+        run: go build -o (Join-Path $env:RUNNER_TEMP 'minecraft-staging-server.exe') ./cmd/staging-server
+      - name: Build staging container
+        if: matrix.backend == 'container'
+        run: docker build -f docker/staging-minecraft.Dockerfile -t minecraft-staging-image:ci .
+      - name: Run release integration
+        if: runner.os != 'Windows'
+        shell: bash
         env:
-          MINECRAFT_STAGING_IMAGE: minecraft-staging-image:ci
-        run: scripts/staging_smoke.sh
+          RELEASE_BACKEND: ${{ matrix.backend }}
+          RELEASE_ARCHIVE_GLOB: ${{ matrix.artifact_glob }}
+          RELEASE_BINARY_NAME: ${{ matrix.binary_name }}
+        run: |
+          args=(
+            -backend "$RELEASE_BACKEND"
+            -binary-archive-glob "dist/$RELEASE_ARCHIVE_GLOB"
+            -binary-name "$RELEASE_BINARY_NAME"
+          )
+          if [[ "$RELEASE_BACKEND" == "binary" ]]; then
+            args+=(-server-binary "$RUNNER_TEMP/minecraft-staging-server")
+          else
+            args+=(-image-tag minecraft-staging-image:ci)
+          fi
+          go run ./cmd/release-integration "${args[@]}"
+      - name: Run release integration (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_BACKEND: ${{ matrix.backend }}
+          RELEASE_ARCHIVE_GLOB: ${{ matrix.artifact_glob }}
+          RELEASE_BINARY_NAME: ${{ matrix.binary_name }}
+        run: |
+          $args = @(
+            '-backend', $env:RELEASE_BACKEND,
+            '-binary-archive-glob', "dist/$($env:RELEASE_ARCHIVE_GLOB)",
+            '-binary-name', $env:RELEASE_BINARY_NAME,
+            '-server-binary', (Join-Path $env:RUNNER_TEMP 'minecraft-staging-server.exe')
+          )
+          go run ./cmd/release-integration @args
 
   ci-mutation-pr:
     name: ci-mutation-pr

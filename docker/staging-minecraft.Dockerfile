@@ -1,1 +1,21 @@
-FROM itzg/minecraft-server:latest@sha256:e5584a422fff67e8c66a5a7aa1ebeecf59a162b153b0469f69da8e93bda85a18
+FROM golang:1.25.0-bookworm AS build
+
+WORKDIR /src
+
+COPY go.mod ./
+RUN go mod download
+
+COPY . .
+
+ARG TARGETOS=linux
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+  go build -trimpath -ldflags='-s -w' -o /out/minecraft-staging-server ./cmd/staging-server
+
+FROM scratch
+
+COPY --from=build /out/minecraft-staging-server /minecraft-staging-server
+
+EXPOSE 25565
+
+ENTRYPOINT ["/minecraft-staging-server", "-listen4", ":25565", "-listen6", ""]

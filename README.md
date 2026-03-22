@@ -93,7 +93,7 @@ Local development builds print `minecraft-ping dev` for `-version`. Tagged relea
 
 ## CI And Security
 
-- `CI`: runs `govulncheck`, `gosec`, `go build`, native `go test` coverage on Linux, macOS, and Windows for `amd64` and `arm64`, a release-snapshot packaging build, Linux package install smoke tests on Debian, Ubuntu, Fedora, and Alpine for `amd64` and `arm64`, and a container-backed dual-stack smoke test; it also runs diff-scoped mutation testing on pull requests.
+- `CI`: runs `govulncheck`, `gosec`, `go build`, native `go test` coverage on Linux, macOS, and Windows for `amd64` and `arm64`, a release-snapshot packaging build, Linux package install smoke tests on Debian, Ubuntu, Fedora, and Alpine for `amd64` and `arm64`, and a final dual-stack integration matrix that executes every release binary against the staging Minecraft target with both `-4` and `-6`; it also runs diff-scoped mutation testing on pull requests.
 - `Release`: builds cross-platform archives plus Linux distro packages with GoReleaser, injects the release version used by `-version`, publishes GitHub release assets, and signs all artifacts with keyless `cosign`.
 - `OSV Scanner`: checks dependency advisories against OSV.
 - `Security Baseline`: runs `gitleaks`.
@@ -103,11 +103,12 @@ Local development builds print `minecraft-ping dev` for `-version`. Tagged relea
 
 ## Operations
 
-- Integration smoke: `scripts/staging_smoke.sh`
+- Final integration helper: `scripts/run_release_integration.sh`
+- Staging backend source: `cmd/staging-server`
 - Staging image definition: `docker/staging-minecraft.Dockerfile`
 - CI helper: `scripts/ci_wait_for_checks.sh`
 
-The staging smoke is dual-stack. It runs a Minecraft container, verifies an IPv4 localhost ping with `-4`, and verifies an IPv6 localhost ping with `-6`. The IPv6 probe is exposed through a local `::1` relay backed by the same container so the smoke remains portable even when the local Docker runtime does not reliably publish IPv6 loopback ports directly.
+The final integration gate uses a small first-party staging backend that speaks the real Minecraft status and ping/pong protocol. Every release archive for Linux, macOS, and Windows on `amd64` and `arm64` is executed natively against that target with both `-4` and `-6`. Linux runners also build the staging container and run the Linux release binaries against it, with the IPv6 probe exposed through a local `::1` relay backed by the same container so the test remains portable even when the Docker runtime does not publish IPv6 loopback ports directly.
 
 ## Releases
 
