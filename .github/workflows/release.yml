@@ -23,8 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
-      attestations: write # Publish GitHub artifact attestations for release assets and SBOMs.
-      artifact-metadata: write # Upload build provenance attestations for published release assets.
       checks: read # Query Main Verify check runs on the tagged main commit before publishing.
       contents: write # Create the GitHub release and upload release assets for the pushed tag.
       id-token: write # Mint the OIDC identity token used for keyless Cosign signing.
@@ -166,24 +164,20 @@ jobs:
           assets=(dist/sbom/*.spdx.json dist/sbom/*.spdx.json.sigstore.json)
           gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
 
-      - name: Collect SBOM subjects
-        id: sbom-subjects
+      - name: Generate and verify Sigstore release attestations
+        shell: bash
+        run: scripts/release_attest.sh dist
+
+      - name: Upload Sigstore attestation assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          {
-            echo "paths<<EOF"
-            find dist/sbom -maxdepth 1 -type f -name '*.spdx.json' | sort
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          shopt -s nullglob
+          assets=(dist/attestation/*.sigstore.json)
+          if [[ "${#assets[@]}" -eq 0 ]]; then
+            echo "No attestation bundles were generated." >&2
+            exit 1
+          fi
 
-      - name: Attest release artifacts
-        if: ${{ github.event.repository.private == false }}
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
-        with:
-          subject-checksums: dist/checksums.txt
-
-      - name: Attest SBOMs
-        if: ${{ github.event.repository.private == false }}
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
-        with:
-          subject-path: ${{ steps.sbom-subjects.outputs.paths }}
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
