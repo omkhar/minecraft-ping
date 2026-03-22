@@ -73,21 +73,21 @@ run_container_smoke \
    apt-get update
    apt-get install -y ca-certificates
    apt-get install -y /dist/$deb_pkg
-   /usr/bin/minecraft-ping -version
-   /usr/bin/minecraft-ping -help >/dev/null"
+   /usr/bin/minecraft-ping -V
+   /usr/bin/minecraft-ping -h >/dev/null"
 
 run_container_smoke \
   "fedora" \
   "fedora:42" \
   "dnf install -y --setopt=localpkg_gpgcheck=0 /dist/$rpm_pkg
-   /usr/bin/minecraft-ping -version
-   /usr/bin/minecraft-ping -help >/dev/null"
+   /usr/bin/minecraft-ping -V
+   /usr/bin/minecraft-ping -h >/dev/null"
 
 run_container_smoke \
   "alpine" \
   "alpine:3.21" \
   "apk add --no-cache --allow-untrusted /dist/$apk_pkg
-   /usr/bin/minecraft-ping -version
-   /usr/bin/minecraft-ping -help >/dev/null"
+   /usr/bin/minecraft-ping -V
+   /usr/bin/minecraft-ping -h >/dev/null"
 
 echo "linux package smoke succeeded for $TARGET_ARCH"
