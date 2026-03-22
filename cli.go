@@ -23,10 +23,6 @@ type cliConfig struct {
 
 type pingFunc func(target endpoint, timeout time.Duration, options pingOptions) (int, error)
 
-func defaultPing(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
-	return pingEndpointWithOptions(target, timeout, options)
-}
-
 func parseCLIConfig(args []string) (cliConfig, error) {
 	fs := flag.NewFlagSet("minecraft-ping", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -35,6 +31,8 @@ func parseCLIConfig(args []string) (cliConfig, error) {
 	portPtr := fs.Int("port", defaultMinecraftPort, "Minecraft server port (default: 25565)")
 	timeoutPtr := fs.Duration("timeout", 5*time.Second, "Connection timeout (e.g., 5s, 1m)")
 	allowPrivatePtr := fs.Bool("allow-private", false, "Allow connections to private/local network addresses")
+	forceIPv4Ptr := fs.Bool("4", false, "Force IPv4")
+	forceIPv6Ptr := fs.Bool("6", false, "Force IPv6")
 	formatPtr := fs.String("format", "text", "Output format: text or json")
 
 	if err := fs.Parse(args); err != nil {
@@ -45,6 +43,10 @@ func parseCLIConfig(args []string) (cliConfig, error) {
 	if err != nil {
 		return cliConfig{}, err
 	}
+	family, err := parseAddressFamily(*forceIPv4Ptr, *forceIPv6Ptr)
+	if err != nil {
+		return cliConfig{}, err
+	}
 
 	return cliConfig{
 		Endpoint: newEndpoint(*serverPtr, *portPtr),
@@ -52,8 +54,22 @@ func parseCLIConfig(args []string) (cliConfig, error) {
 		Format:   outputFormat,
 		Options: pingOptions{
 			allowPrivateAddresses: *allowPrivatePtr,
+			addressFamily:         family,
 		},
 	}, nil
+}
+
+func parseAddressFamily(forceIPv4 bool, forceIPv6 bool) (addressFamily, error) {
+	switch {
+	case forceIPv4 && forceIPv6:
+		return addressFamilyAny, fmt.Errorf("flags -4 and -6 are mutually exclusive")
+	case forceIPv4:
+		return addressFamily4, nil
+	case forceIPv6:
+		return addressFamily6, nil
+	default:
+		return addressFamilyAny, nil
+	}
 }
 
 func normalizeOutputFormat(format string) (string, error) {
@@ -68,16 +84,12 @@ func normalizeOutputFormat(format string) (string, error) {
 }
 
 func renderResult(format string, target endpoint, latency int) string {
-	switch format {
-	case "json":
+	if format == "json" {
 		// pingResult is a simple string/int struct; marshaling cannot fail.
 		out, _ := json.Marshal(pingResult{Server: target.Host, LatencyMs: latency})
 		return string(out)
-	case "text":
-		return fmt.Sprintf("Ping time is %d ms", latency)
-	default:
-		return fmt.Sprintf("Ping time is %d ms", latency)
 	}
+	return fmt.Sprintf("Ping time is %d ms", latency)
 }
 
 func runCLI(args []string, stdout io.Writer, ping pingFunc) error {
@@ -95,15 +107,14 @@ func runCLI(args []string, stdout io.Writer, ping pingFunc) error {
 	return err
 }
 
-func argsWithoutProgram(argv []string) []string {
-	if len(argv) <= 1 {
-		return nil
+func run(argv []string, stdout io.Writer, stderr io.Writer, ping pingFunc) int {
+	if len(argv) > 1 {
+		argv = argv[1:]
+	} else {
+		argv = nil
 	}
-	return argv[1:]
-}
 
-func execute(argv []string, stdout io.Writer, stderr io.Writer, ping pingFunc) int {
-	if err := runCLI(argsWithoutProgram(argv), stdout, ping); err != nil {
+	if err := runCLI(argv, stdout, ping); err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}

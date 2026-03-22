@@ -32,6 +32,9 @@ func TestRunCLITextOutput(t *testing.T) {
 			if options.allowPrivateAddresses {
 				t.Fatalf("allowPrivateAddresses = true, want false")
 			}
+			if options.addressFamily != addressFamilyAny {
+				t.Fatalf("addressFamily = %v, want any", options.addressFamily)
+			}
 			return 37, nil
 		},
 	)
@@ -64,6 +67,9 @@ func TestRunCLIJSONOutput(t *testing.T) {
 			}
 			if !options.allowPrivateAddresses {
 				t.Fatalf("allowPrivateAddresses = false, want true")
+			}
+			if options.addressFamily != addressFamilyAny {
+				t.Fatalf("addressFamily = %v, want any", options.addressFamily)
 			}
 			return 9, nil
 		},
@@ -107,6 +113,29 @@ func TestRunCLIRejectsInvalidFormatBeforePing(t *testing.T) {
 	}
 	if output.Len() != 0 {
 		t.Fatalf("runCLI() wrote output for invalid format: %q", output.String())
+	}
+}
+
+func TestRunCLIRejectsConflictingAddressFamilyFlagsBeforePing(t *testing.T) {
+	var output bytes.Buffer
+	called := false
+
+	err := runCLI(
+		[]string{"-4", "-6"},
+		&output,
+		func(endpoint, time.Duration, pingOptions) (int, error) {
+			called = true
+			return 1, nil
+		},
+	)
+	if err == nil {
+		t.Fatal("runCLI() expected conflicting flag error but got nil")
+	}
+	if called {
+		t.Fatal("runCLI() called ping function for conflicting flags")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("runCLI() error = %q, want mutually exclusive message", err.Error())
 	}
 }
 
@@ -209,7 +238,7 @@ func TestNormalizeOutputFormat(t *testing.T) {
 }
 
 func TestParseCLIConfig(t *testing.T) {
-	config, err := parseCLIConfig([]string{"-server", " trimmed.example ", "-port", "25570", "-timeout", "3s", "-allow-private", "-format", "JSON"})
+	config, err := parseCLIConfig([]string{"-server", " trimmed.example ", "-port", "25570", "-timeout", "3s", "-allow-private", "-format", "JSON", "-6"})
 	if err != nil {
 		t.Fatalf("parseCLIConfig() error: %v", err)
 	}
@@ -227,6 +256,42 @@ func TestParseCLIConfig(t *testing.T) {
 	}
 	if !config.Options.allowPrivateAddresses {
 		t.Fatal("allowPrivateAddresses = false, want true")
+	}
+	if config.Options.addressFamily != addressFamily6 {
+		t.Fatalf("addressFamily = %v, want IPv6", config.Options.addressFamily)
+	}
+}
+
+func TestParseAddressFamily(t *testing.T) {
+	tests := []struct {
+		name      string
+		forceIPv4 bool
+		forceIPv6 bool
+		want      addressFamily
+		expectErr bool
+	}{
+		{name: "default", want: addressFamilyAny},
+		{name: "force ipv4", forceIPv4: true, want: addressFamily4},
+		{name: "force ipv6", forceIPv6: true, want: addressFamily6},
+		{name: "conflict", forceIPv4: true, forceIPv6: true, expectErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseAddressFamily(tt.forceIPv4, tt.forceIPv6)
+			if tt.expectErr {
+				if err == nil {
+					t.Fatal("parseAddressFamily() expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseAddressFamily() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("parseAddressFamily() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -247,46 +312,10 @@ func TestRenderResult(t *testing.T) {
 	}
 }
 
-func TestArgsWithoutProgram(t *testing.T) {
-	tests := []struct {
-		name    string
-		in      []string
-		want    []string
-		wantNil bool
-	}{
-		{name: "empty", in: nil, want: nil, wantNil: true},
-		{name: "binary only", in: []string{"minecraft-ping"}, want: nil, wantNil: true},
-		{name: "binary plus one arg", in: []string{"minecraft-ping", "-json"}, want: []string{"-json"}, wantNil: false},
-		{name: "binary plus args", in: []string{"minecraft-ping", "-server", "mc.example.com"}, want: []string{"-server", "mc.example.com"}, wantNil: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := argsWithoutProgram(tt.in)
-			if strings.Join(got, "|") != strings.Join(tt.want, "|") {
-				t.Fatalf("argsWithoutProgram(%v) = %v, want %v", tt.in, got, tt.want)
-			}
-			if (got == nil) != tt.wantNil {
-				t.Fatalf("argsWithoutProgram(%v) nil = %t, want nil = %t", tt.in, got == nil, tt.wantNil)
-			}
-		})
-	}
-}
-
-func TestMainArgsDefaultsToOSArgs(t *testing.T) {
-	args := mainArgs()
-	if len(args) == 0 {
-		t.Fatal("mainArgs() returned no arguments")
-	}
-	if args[0] != os.Args[0] {
-		t.Fatalf("mainArgs()[0] = %q, want %q", args[0], os.Args[0])
-	}
-}
-
-func TestExecuteSuccess(t *testing.T) {
+func TestRunSuccess(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	rc := execute(
+	rc := run(
 		[]string{"minecraft-ping", "-server", "mc.example.com"},
 		&stdout,
 		&stderr,
@@ -295,20 +324,20 @@ func TestExecuteSuccess(t *testing.T) {
 		},
 	)
 	if rc != 0 {
-		t.Fatalf("execute() rc = %d, want 0", rc)
+		t.Fatalf("run() rc = %d, want 0", rc)
 	}
 	if stderr.Len() != 0 {
-		t.Fatalf("execute() wrote stderr on success: %q", stderr.String())
+		t.Fatalf("run() wrote stderr on success: %q", stderr.String())
 	}
 	if stdout.String() != "Ping time is 11 ms\n" {
-		t.Fatalf("execute() stdout = %q, want %q", stdout.String(), "Ping time is 11 ms\n")
+		t.Fatalf("run() stdout = %q, want %q", stdout.String(), "Ping time is 11 ms\n")
 	}
 }
 
-func TestExecuteFailureWritesError(t *testing.T) {
+func TestRunFailureWritesError(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	rc := execute(
+	rc := run(
 		[]string{"minecraft-ping", "-format", "xml"},
 		&stdout,
 		&stderr,
@@ -317,50 +346,27 @@ func TestExecuteFailureWritesError(t *testing.T) {
 		},
 	)
 	if rc != 1 {
-		t.Fatalf("execute() rc = %d, want 1", rc)
+		t.Fatalf("run() rc = %d, want 1", rc)
 	}
 	if stdout.Len() != 0 {
-		t.Fatalf("execute() wrote stdout on failure: %q", stdout.String())
+		t.Fatalf("run() wrote stdout on failure: %q", stdout.String())
 	}
 	if !strings.Contains(stderr.String(), "expected text or json") {
-		t.Fatalf("execute() stderr = %q, expected format validation message", stderr.String())
+		t.Fatalf("run() stderr = %q, expected format validation message", stderr.String())
 	}
 }
 
-func TestMainUsesExecuteExitCode(t *testing.T) {
-	originalArgs := mainArgs
-	originalStdout := mainStdout
-	originalStderr := mainStderr
-	originalExit := mainExit
-	t.Cleanup(func() {
-		mainArgs = originalArgs
-		mainStdout = originalStdout
-		mainStderr = originalStderr
-		mainExit = originalExit
-	})
-
+func TestRunUsesExitCode(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	exitCode := -1
-
-	mainArgs = func() []string {
-		return []string{"minecraft-ping", "-format", "xml"}
-	}
-	mainStdout = &stdout
-	mainStderr = &stderr
-	mainExit = func(code int) {
-		exitCode = code
-	}
-
-	main()
-
-	if exitCode != 1 {
-		t.Fatalf("main() exit code = %d, want 1", exitCode)
+	rc := run([]string{"minecraft-ping", "-format", "xml"}, &stdout, &stderr, func(endpoint, time.Duration, pingOptions) (int, error) { return 0, nil })
+	if rc != 1 {
+		t.Fatalf("run() exit code = %d, want 1", rc)
 	}
 	if stdout.Len() != 0 {
-		t.Fatalf("main() wrote stdout on failure: %q", stdout.String())
+		t.Fatalf("run() wrote stdout on failure: %q", stdout.String())
 	}
 	if !strings.Contains(stderr.String(), "expected text or json") {
-		t.Fatalf("main() stderr = %q, expected format validation message", stderr.String())
+		t.Fatalf("run() stderr = %q, expected format validation message", stderr.String())
 	}
 }
