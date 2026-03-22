@@ -28,7 +28,7 @@ jobs:
     name: ci-lint
     runs-on: ubuntu-latest
     permissions:
-      actions: read
+      actions: read # Read referenced action metadata during workflow auditing.
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
