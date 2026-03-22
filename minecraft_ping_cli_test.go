@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
 	"os"
 	"strings"
@@ -136,6 +137,29 @@ func TestRunCLIRejectsConflictingAddressFamilyFlagsBeforePing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Fatalf("runCLI() error = %q, want mutually exclusive message", err.Error())
+	}
+}
+
+func TestRunCLIHelpReturnsFlagErrHelpWithoutCallingPing(t *testing.T) {
+	var output bytes.Buffer
+	called := false
+
+	err := runCLI(
+		[]string{"-help"},
+		&output,
+		func(endpoint, time.Duration, pingOptions) (int, error) {
+			called = true
+			return 1, nil
+		},
+	)
+	if !errors.Is(err, flag.ErrHelp) {
+		t.Fatalf("runCLI() error = %v, want %v", err, flag.ErrHelp)
+	}
+	if called {
+		t.Fatal("runCLI() called ping function for help")
+	}
+	if output.Len() != 0 {
+		t.Fatalf("runCLI() wrote output for help: %q", output.String())
 	}
 }
 
@@ -331,6 +355,76 @@ func TestRunSuccess(t *testing.T) {
 	}
 	if stdout.String() != "Ping time is 11 ms\n" {
 		t.Fatalf("run() stdout = %q, want %q", stdout.String(), "Ping time is 11 ms\n")
+	}
+}
+
+func TestRunHelpWritesUsageToStdout(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	called := false
+
+	rc := run(
+		[]string{"minecraft-ping", "-help"},
+		&stdout,
+		&stderr,
+		func(endpoint, time.Duration, pingOptions) (int, error) {
+			called = true
+			return 0, nil
+		},
+	)
+	if rc != 0 {
+		t.Fatalf("run() rc = %d, want 0", rc)
+	}
+	if called {
+		t.Fatal("run() called ping function for help")
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("run() wrote stderr for help: %q", stderr.String())
+	}
+
+	help := stdout.String()
+	for _, want := range []string{
+		"Usage:\n  minecraft-ping [flags]\n",
+		"Flags:\n",
+		"Force IPv4",
+		"Force IPv6",
+		"Minecraft server to ping",
+		"Output format: text or json",
+	} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("run() help output missing %q in %q", want, help)
+		}
+	}
+}
+
+func TestRunInvalidFlagWritesUsageToStderr(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	rc := run(
+		[]string{"minecraft-ping", "-unknown-flag"},
+		&stdout,
+		&stderr,
+		func(endpoint, time.Duration, pingOptions) (int, error) {
+			return 0, nil
+		},
+	)
+	if rc != 1 {
+		t.Fatalf("run() rc = %d, want 1", rc)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("run() wrote stdout for invalid flag: %q", stdout.String())
+	}
+
+	message := stderr.String()
+	for _, want := range []string{
+		"flag provided but not defined: -unknown-flag",
+		"Usage:\n  minecraft-ping [flags]\n",
+		"Force IPv6",
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("run() stderr missing %q in %q", want, message)
+		}
 	}
 }
 
