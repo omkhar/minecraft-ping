@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	statusProtocolVersion    = 109
+	statusProtocolVersion    = -1
 	maxPacketLength          = 2 * 1024 * 1024
 	maxStatusJSONLength      = 1 * 1024 * 1024
 	maxHandshakeHostByteSize = 255
@@ -182,14 +182,11 @@ func expectStatusHandshake(r io.Reader) error {
 		return fmt.Errorf("unexpected handshake packet id: %d", packetID)
 	}
 
-	protocolVersion, protocolBytes, err := readVarIntFromBytes(handshake[consumed:])
+	_, protocolBytes, err := readVarIntFromBytes(handshake[consumed:])
 	if err != nil {
 		return err
 	}
 	consumed += protocolBytes
-	if protocolVersion != statusProtocolVersion {
-		return fmt.Errorf("unexpected protocol version: %d", protocolVersion)
-	}
 
 	_, hostBytes, err := readStringFromBytes(handshake[consumed:], maxHandshakeHostByteSize)
 	if err != nil {

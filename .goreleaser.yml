@@ -41,7 +41,7 @@ nfpms:
     vendor: Omkhar Arasaratnam
     homepage: https://github.com/omkhar/minecraft-ping
     maintainer: Omkhar Arasaratnam <omkhar@gmail.com>
-    description: CLI that measures Minecraft Java Edition server latency using the native handshake, status, and ping/pong flow.
+    description: CLI that measures Minecraft Java and Bedrock server latency with ping-style ergonomics.
     license: Apache 2.0
     section: utils
     priority: optional

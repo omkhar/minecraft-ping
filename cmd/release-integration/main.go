@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -451,12 +452,10 @@ func runProbe(ctx context.Context, binaryPath, host string, port int, timeout ti
 	cmd := exec.CommandContext(
 		commandCtx,
 		binaryPath,
-		"-server", host,
-		"-port", fmt.Sprint(port),
-		"-allow-private",
-		"-timeout", timeout.String(),
-		"-format", "json",
+		"-j",
+		"-W", strconv.FormatFloat(timeout.Seconds(), 'f', -1, 64),
 		familyFlag,
+		net.JoinHostPort(host, fmt.Sprint(port)),
 	)
 
 	stdout, err := cmd.Output()

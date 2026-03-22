@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-Go CLI tool that measures latency to a Minecraft Java Edition server using the native handshake -> status -> ping/pong sequence. It supports SRV lookup, explicit IPv4 or IPv6 forcing, and private-address filtering.
+Go CLI tool that measures latency to Minecraft Java and Bedrock servers with Linux-`ping` ergonomics. Java uses the native handshake -> status -> ping/pong sequence over TCP, and Bedrock uses RakNet unconnected ping/pong over UDP.
 
 ## Commands
 
@@ -12,19 +12,20 @@ Go CLI tool that measures latency to a Minecraft Java Edition server using the n
 # Build
 go build -v ./...
 
-# Show flags
-go run . -help
+# Show help
+go run . -h
 
 # Show embedded build version
-go run . -version
+go run . -V
 
-# Run
-./minecraft-ping -server mc.example.com \
-  [-port 25565] \
-  [-timeout 5s] \
-  [-allow-private] \
-  [-format text|json] \
-  [-4|-6]
+# Run Java continuously until Ctrl-C
+./minecraft-ping mc.example.com
+
+# Run Bedrock
+./minecraft-ping --bedrock play.example.com
+
+# Single JSON probe
+./minecraft-ping -j mc.example.com
 
 # Unit tests
 go test -v ./...
@@ -41,12 +42,17 @@ scripts/run_release_integration.sh
 ## Architecture
 
 - `minecraft-ping.go` — program entry point
-- `cli.go` — CLI parsing, help/version handling, output rendering, and process exit behavior
-- `version.go` — build-time version string used by `-version`
-- `client.go` — request validation, SRV handling, address resolution, dialing, and ping execution
+- `cli.go` — Linux-style argv parsing, help/version handling, JSON mode, and process exit behavior
+- `version.go` — build-time version string used by `-V`
+- `client.go` — shared request validation, resolution, dialing, and legacy direct-probe helpers
+- `editions.go` — edition selection, destination parsing, and edition-aware default ports
 - `endpoint.go` — endpoint normalization plus address-family and host validation
-- `address.go` — non-public address detection and family-aware dial candidate ordering
-- `protocol.go` — packet serialization and parsing for handshake, status, and ping/pong
+- `address.go` — family-aware dial candidate ordering
+- `java.go` — Java route resolution plus Java session probing
+- `bedrock.go` — Bedrock UDP/RakNet probing and strict pong parsing
+- `probe.go` — edition dispatch for prepared probes
+- `session.go` — ping-style text session loop and summary rendering
+- `protocol.go` — Java packet serialization and parsing for handshake, status, and ping/pong
 - `minecraft-ping_test.go` — end-to-end protocol, resolution, and dialing tests with fakes
 - `minecraft_ping_cli_test.go` — CLI behavior tests for help, version, output, and exit paths
 - `ping_fuzz_test.go` — fuzz targets for parser robustness
@@ -55,12 +61,14 @@ scripts/run_release_integration.sh
 
 ## CLI Behavior
 
-- Default output is human-readable text: `Ping time is N ms`
-- `-format=json` emits `{"server":"...","latency_ms":N}`
+- Public CLI is `minecraft-ping [options] destination`
+- Java is the default edition; Bedrock is selected with `--bedrock` or `--edition bedrock`
+- Text mode is `ping`-style and continuous by default; `-c` makes it finite
+- `-j` emits `{"server":"...","latency_ms":N}` for a single probe
 - `-4` forces IPv4 resolution and dialing
 - `-6` forces IPv6 resolution and dialing
-- `-version` prints the embedded build version and exits
-- Private and loopback targets are rejected unless `-allow-private` is set
+- `-V` prints the embedded build version and exits
+- Invalid argv prints the help screen and exits with status `2`
 
 ## CI
 
@@ -79,5 +87,5 @@ The final integration harness executes real release artifacts everywhere. Linux 
 ## Notes
 
 - Packet IDs are named constants in `protocol.go`; preserve that style.
-- Keep the transport path simple: validation -> SRV resolution -> family-aware resolution -> dial -> protocol exchange.
+- Keep the transport path simple: validation -> destination parsing -> edition-aware resolution -> dial -> protocol exchange.
 - Prefer tests that exercise real CLI behavior and fake network boundaries over broad mocking of internal implementation details.

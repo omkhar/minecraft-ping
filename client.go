@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 	"time"
 )
 
@@ -23,9 +22,10 @@ type dnsResolver interface {
 type dialContextFunc func(ctx context.Context, network, address string) (net.Conn, error)
 
 type pingRequest struct {
-	target  endpoint
-	timeout time.Duration
-	options pingOptions
+	target       endpoint
+	explicitPort bool
+	timeout      time.Duration
+	options      pingOptions
 }
 
 type pingClient struct {
@@ -66,6 +66,9 @@ func (c pingClient) withDefaults() pingClient {
 }
 
 func ping(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
+	if options.edition == editionBedrock {
+		return pingBedrock(target, timeout, options)
+	}
 	return newPingClient().ping(target, timeout, options)
 }
 
@@ -74,9 +77,16 @@ func defaultDialContext(ctx context.Context, network, address string) (net.Conn,
 	return dialer.DialContext(ctx, network, address)
 }
 
-func newPingRequest(target endpoint, timeout time.Duration, options pingOptions) (pingRequest, error) {
-	target = newEndpoint(target.Host, target.Port)
-	if err := target.validate(); err != nil {
+func newPingRequest(target targetSpec, timeout time.Duration, options pingOptions) (pingRequest, error) {
+	ed := options.edition
+	if ed != editionBedrock {
+		ed = editionJava
+	}
+	normalized := newEndpoint(target.Host, target.defaultPort(options.addressFamily, ed))
+	if target.PortExplicit {
+		normalized = newEndpoint(target.Host, target.Port)
+	}
+	if err := normalized.validate(); err != nil {
 		return pingRequest{}, err
 	}
 	if err := options.addressFamily.validate(); err != nil {
@@ -90,16 +100,17 @@ func newPingRequest(target endpoint, timeout time.Duration, options pingOptions)
 	}
 
 	return pingRequest{
-		target:  target,
-		timeout: timeout,
-		options: options,
+		target:       normalized,
+		explicitPort: target.PortExplicit,
+		timeout:      timeout,
+		options:      options,
 	}, nil
 }
 
 func (c pingClient) ping(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
 	c = c.withDefaults()
 
-	request, err := newPingRequest(target, timeout, options)
+	request, err := newPingRequest(newTargetSpec(target.Host, target.Port, target.Port != defaultMinecraftPort), timeout, options)
 	if err != nil {
 		return 0, err
 	}
@@ -107,12 +118,17 @@ func (c pingClient) ping(target endpoint, timeout time.Duration, options pingOpt
 	ctx, cancel := context.WithTimeout(context.Background(), request.timeout)
 	defer cancel()
 
-	route, err := c.resolveEndpointContext(ctx, request.target)
+	route, err := c.resolveJavaRouteContext(ctx, newTargetSpec(request.target.Host, request.target.Port, request.explicitPort))
 	if err != nil {
 		return 0, fmt.Errorf("failed to ping server %s: %w", request.target, err)
 	}
 
-	latency, err := c.pingEndpointContext(ctx, route, request.timeout, request.options)
+	candidates, err := c.resolveDialCandidates(ctx, route.Dial, request.options)
+	if err != nil {
+		return 0, fmt.Errorf("failed to ping server %s: %w", request.target, err)
+	}
+
+	sample, err := c.pingJavaPreparedContext(ctx, route, candidates, request.timeout)
 	if err != nil {
 		if route.Dial != request.target {
 			return 0, fmt.Errorf("failed to ping server %s (resolved to %s): %w", request.target, route.Dial, err)
@@ -120,14 +136,18 @@ func (c pingClient) ping(target endpoint, timeout time.Duration, options pingOpt
 		return 0, fmt.Errorf("failed to ping server %s: %w", request.target, err)
 	}
 
-	return latency, nil
+	latencyMs := int(sample.latency / time.Millisecond)
+	if latencyMs < 1 {
+		latencyMs = 1
+	}
+	return latencyMs, nil
 }
 
 func (c pingClient) resolveEndpoint(target endpoint, timeout time.Duration) endpointRoute {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	route, err := c.withDefaults().resolveEndpointContext(ctx, target)
+	route, err := c.withDefaults().resolveJavaRouteContext(ctx, newTargetSpec(target.Host, target.Port, target.Port != defaultMinecraftPort))
 	if err != nil {
 		return endpointRoute{
 			Dial:      target,
@@ -138,100 +158,31 @@ func (c pingClient) resolveEndpoint(target endpoint, timeout time.Duration) endp
 	return route
 }
 
-func (c pingClient) resolveEndpointContext(ctx context.Context, target endpoint) (endpointRoute, error) {
-	route := endpointRoute{
-		Dial:      target,
-		Handshake: target,
-	}
-
-	if target.Port != defaultMinecraftPort {
-		return route, nil
-	}
-	if _, ok := target.literalIP(); ok {
-		return route, nil
-	}
-
-	_, records, err := c.resolver.LookupSRV(ctx, "minecraft", "tcp", target.Host)
-	if err != nil || len(records) == 0 {
-		if ctx.Err() != nil {
-			return endpointRoute{}, ctx.Err()
-		}
-		return route, nil
-	}
-
-	srvTarget := strings.TrimSuffix(records[0].Target, ".")
-	if srvTarget == "" || records[0].Port == 0 {
-		return route, nil
-	}
-
-	resolvedPort := int(records[0].Port)
-	route.Dial = newEndpoint(srvTarget, resolvedPort)
-	route.Handshake = newEndpoint(target.Host, resolvedPort)
-	return route, nil
-}
-
-func (c pingClient) pingEndpoint(route endpointRoute, timeout time.Duration, allowPrivateAddresses bool) (int, error) {
+func (c pingClient) pingEndpoint(route endpointRoute, timeout time.Duration, _ ...bool) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	return c.withDefaults().pingEndpointContext(ctx, route, timeout, pingOptions{
-		allowPrivateAddresses: allowPrivateAddresses,
-	})
-}
-
-func (c pingClient) pingEndpointContext(ctx context.Context, route endpointRoute, timeout time.Duration, options pingOptions) (int, error) {
-	conn, err := c.dialMinecraftTCPContext(ctx, route.Dial, options)
+	candidates, err := c.withDefaults().resolveDialCandidates(ctx, route.Dial, pingOptions{})
 	if err != nil {
 		return 0, err
 	}
-	defer conn.Close()
 
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Now().Add(timeout)
-	}
-	if err := conn.SetDeadline(deadline); err != nil {
-		return 0, err
-	}
-
-	if err := sendHandshakePacket(conn, route.Handshake); err != nil {
-		return 0, err
-	}
-	if err := sendStatusRequestPacket(conn); err != nil {
-		return 0, err
-	}
-	if err := readStatusResponse(conn); err != nil {
-		return 0, err
-	}
-
-	token, err := c.tokenSource()
+	sample, err := c.withDefaults().pingJavaPreparedContext(ctx, route, candidates, timeout)
 	if err != nil {
 		return 0, err
 	}
-	start := c.now()
-
-	if err := sendPingPacket(conn, token); err != nil {
-		return 0, err
-	}
-	if err := readPongPacket(conn, token); err != nil {
-		return 0, err
-	}
-
-	latencyMs := int(c.now().Sub(start) / time.Millisecond)
+	latencyMs := int(sample.latency / time.Millisecond)
 	if latencyMs < 1 {
 		latencyMs = 1
 	}
-
 	return latencyMs, nil
 }
 
-func (c pingClient) dialMinecraftTCP(target endpoint, timeout time.Duration, allowPrivateAddresses bool) (net.Conn, error) {
+func (c pingClient) dialMinecraftTCP(target endpoint, timeout time.Duration, _ bool) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	return c.withDefaults().dialMinecraftTCPContext(ctx, target, pingOptions{
-		allowPrivateAddresses: allowPrivateAddresses,
-	})
+	return c.withDefaults().dialMinecraftTCPContext(ctx, target, pingOptions{})
 }
 
 func (c pingClient) dialMinecraftTCPContext(ctx context.Context, target endpoint, options pingOptions) (net.Conn, error) {

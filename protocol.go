@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	statusProtocolVersion    = 109
+	// Server list ping uses -1 conventionally so status works across protocol versions.
+	statusProtocolVersion    = -1
 	maxPacketLength          = 2 * 1024 * 1024
 	maxStatusJSONLength      = 1 * 1024 * 1024
 	maxHandshakeHostByteSize = 255

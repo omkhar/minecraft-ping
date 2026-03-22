@@ -2,530 +2,333 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
-	"flag"
-	"io"
-	"os"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestRunCLITextOutput(t *testing.T) {
-	var output bytes.Buffer
-	var called bool
+type stubPreparedProbe struct {
+	bannerText  string
+	summaryText string
+	samples     []probeSample
+	errs        []error
+	timeouts    []time.Duration
+}
 
-	err := runCLI(
-		[]string{"-server", "mc.example.com", "-port", "25566", "-timeout", "2s"},
-		&output,
-		func(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
-			called = true
-			if target.Host != "mc.example.com" {
-				t.Fatalf("server = %q, want mc.example.com", target.Host)
-			}
-			if target.Port != 25566 {
-				t.Fatalf("port = %d, want 25566", target.Port)
-			}
-			if timeout != 2*time.Second {
-				t.Fatalf("timeout = %s, want 2s", timeout)
-			}
-			if options.allowPrivateAddresses {
-				t.Fatalf("allowPrivateAddresses = true, want false")
-			}
-			if options.addressFamily != addressFamilyAny {
-				t.Fatalf("addressFamily = %v, want any", options.addressFamily)
-			}
-			return 37, nil
-		},
-	)
-	if err != nil {
-		t.Fatalf("runCLI() returned error: %v", err)
+func (p *stubPreparedProbe) banner(bool) string {
+	return p.bannerText
+}
+
+func (p *stubPreparedProbe) summaryLabel(bool) string {
+	return p.summaryText
+}
+
+func (p *stubPreparedProbe) probe(_ context.Context, timeout time.Duration) (probeSample, error) {
+	if len(p.timeouts) < len(p.samples)+len(p.errs)+1 {
+		p.timeouts = append(p.timeouts, 0)
 	}
-	if !called {
-		t.Fatal("runCLI() did not call ping function")
+	index := len(p.timeouts) - 1
+	p.timeouts[index] = timeout
+	if len(p.errs) > 0 {
+		err := p.errs[0]
+		p.errs = p.errs[1:]
+		return probeSample{}, err
 	}
-	if got := output.String(); got != "Ping time is 37 ms\n" {
-		t.Fatalf("output = %q, want %q", got, "Ping time is 37 ms\n")
+	if len(p.samples) == 0 {
+		return probeSample{}, errors.New("no sample queued")
+	}
+	sample := p.samples[0]
+	p.samples = p.samples[1:]
+	return sample, nil
+}
+
+func TestParseCLIConfigDefaultJava(t *testing.T) {
+	cfg, status := parseCLIConfig([]string{"mc.example.com"})
+	if status != parseStatusOK {
+		t.Fatalf("parseCLIConfig() status = %v", status)
+	}
+	if cfg.Edition != editionJava {
+		t.Fatalf("Edition = %v, want java", cfg.Edition)
+	}
+	if cfg.Target.Host != "mc.example.com" {
+		t.Fatalf("Host = %q", cfg.Target.Host)
+	}
+	if cfg.Target.PortExplicit {
+		t.Fatal("PortExplicit = true, want false")
+	}
+	if cfg.Interval != time.Second {
+		t.Fatalf("Interval = %s, want 1s", cfg.Interval)
+	}
+	if cfg.Timeout != 5*time.Second {
+		t.Fatalf("Timeout = %s, want 5s", cfg.Timeout)
 	}
 }
 
-func TestRunCLIJSONOutput(t *testing.T) {
-	var output bytes.Buffer
-
-	err := runCLI(
-		[]string{"-server", "json.example", "-allow-private", "-format", "JSON"},
-		&output,
-		func(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
-			if target.Host != "json.example" {
-				t.Fatalf("server = %q, want json.example", target.Host)
-			}
-			if target.Port != 25565 {
-				t.Fatalf("port = %d, want default 25565", target.Port)
-			}
-			if timeout != 5*time.Second {
-				t.Fatalf("timeout = %s, want default 5s", timeout)
-			}
-			if !options.allowPrivateAddresses {
-				t.Fatalf("allowPrivateAddresses = false, want true")
-			}
-			if options.addressFamily != addressFamilyAny {
-				t.Fatalf("addressFamily = %v, want any", options.addressFamily)
-			}
-			return 9, nil
-		},
-	)
-	if err != nil {
-		t.Fatalf("runCLI() returned error: %v", err)
+func TestParseCLIConfigBedrockFlags(t *testing.T) {
+	cfg, status := parseCLIConfig([]string{"--bedrock", "-6", "-c", "3", "-i", "0.5", "-w", "2", "-W", "1.5", "[2001:db8::10]:19133"})
+	if status != parseStatusOK {
+		t.Fatalf("parseCLIConfig() status = %v", status)
 	}
-
-	var result pingResult
-	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
-		t.Fatalf("json.Unmarshal() error: %v", err)
+	if cfg.Edition != editionBedrock {
+		t.Fatalf("Edition = %v, want bedrock", cfg.Edition)
 	}
-	if result.Server != "json.example" {
-		t.Fatalf("json server = %q, want json.example", result.Server)
+	if cfg.Options.addressFamily != addressFamily6 {
+		t.Fatalf("addressFamily = %v, want IPv6", cfg.Options.addressFamily)
 	}
-	if result.LatencyMs != 9 {
-		t.Fatalf("json latency_ms = %d, want 9", result.LatencyMs)
+	if cfg.Count != 3 {
+		t.Fatalf("Count = %d, want 3", cfg.Count)
+	}
+	if cfg.Interval != 500*time.Millisecond {
+		t.Fatalf("Interval = %s, want 500ms", cfg.Interval)
+	}
+	if cfg.Deadline != 2*time.Second {
+		t.Fatalf("Deadline = %s, want 2s", cfg.Deadline)
+	}
+	if cfg.Timeout != 1500*time.Millisecond {
+		t.Fatalf("Timeout = %s, want 1.5s", cfg.Timeout)
+	}
+	if cfg.Target.Host != "2001:db8::10" || cfg.Target.Port != 19133 || !cfg.Target.PortExplicit {
+		t.Fatalf("Target = %+v", cfg.Target)
 	}
 }
 
-func TestRunCLIRejectsInvalidFormatBeforePing(t *testing.T) {
-	var output bytes.Buffer
-	called := false
-
-	err := runCLI(
-		[]string{"-format", "xml"},
-		&output,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			called = true
-			return 1, nil
-		},
-	)
-	if err == nil {
-		t.Fatal("runCLI() expected invalid format error but got nil")
-	}
-	if called {
-		t.Fatal("runCLI() called ping function for invalid format")
-	}
-	if !strings.Contains(err.Error(), "expected text or json") {
-		t.Fatalf("runCLI() error = %q, expected format validation message", err.Error())
-	}
-	if output.Len() != 0 {
-		t.Fatalf("runCLI() wrote output for invalid format: %q", output.String())
-	}
-}
-
-func TestRunCLIRejectsConflictingAddressFamilyFlagsBeforePing(t *testing.T) {
-	var output bytes.Buffer
-	called := false
-
-	err := runCLI(
-		[]string{"-4", "-6"},
-		&output,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			called = true
-			return 1, nil
-		},
-	)
-	if err == nil {
-		t.Fatal("runCLI() expected conflicting flag error but got nil")
-	}
-	if called {
-		t.Fatal("runCLI() called ping function for conflicting flags")
-	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Fatalf("runCLI() error = %q, want mutually exclusive message", err.Error())
-	}
-}
-
-func TestRunCLIVersionWritesVersionWithoutCallingPing(t *testing.T) {
-	var output bytes.Buffer
-	called := false
-
-	err := runCLI(
-		[]string{"-version"},
-		&output,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			called = true
-			return 1, nil
-		},
-	)
-	if err != nil {
-		t.Fatalf("runCLI() returned error: %v", err)
-	}
-	if called {
-		t.Fatal("runCLI() called ping function for version")
-	}
-	if got := output.String(); got != "minecraft-ping dev\n" {
-		t.Fatalf("runCLI() output = %q, want %q", got, "minecraft-ping dev\n")
-	}
-}
-
-func TestRunCLIHelpReturnsFlagErrHelpWithoutCallingPing(t *testing.T) {
-	var output bytes.Buffer
-	called := false
-
-	err := runCLI(
-		[]string{"-help"},
-		&output,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			called = true
-			return 1, nil
-		},
-	)
-	if !errors.Is(err, flag.ErrHelp) {
-		t.Fatalf("runCLI() error = %v, want %v", err, flag.ErrHelp)
-	}
-	if called {
-		t.Fatal("runCLI() called ping function for help")
-	}
-	if output.Len() != 0 {
-		t.Fatalf("runCLI() wrote output for help: %q", output.String())
-	}
-}
-
-func TestRunCLIInvalidFlagReturnsErrorWithoutCallingPingAndNoStderr(t *testing.T) {
-	var output bytes.Buffer
-	called := false
-
-	stderrCapture, err := os.CreateTemp("", "minecraft-ping-stderr-*")
-	if err != nil {
-		t.Fatalf("os.CreateTemp() error: %v", err)
-	}
-	defer os.Remove(stderrCapture.Name())
-
-	originalStderr := os.Stderr
-	os.Stderr = stderrCapture
-	defer func() {
-		os.Stderr = originalStderr
-		_ = stderrCapture.Close()
-	}()
-
-	err = runCLI(
-		[]string{"-unknown-flag"},
-		&output,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			called = true
-			return 1, nil
-		},
-	)
-	if err == nil {
-		t.Fatal("runCLI() expected flag parse error but got nil")
-	}
-	if called {
-		t.Fatal("runCLI() called ping function when flag parsing failed")
-	}
-	if output.Len() != 0 {
-		t.Fatalf("runCLI() wrote output for invalid flag: %q", output.String())
+func TestParseCLIConfigRejectsInvalidInputs(t *testing.T) {
+	tests := [][]string{
+		nil,
+		{"-4", "-6", "example.com"},
+		{"--java", "--bedrock", "example.com"},
+		{"-j", "-c", "2", "example.com"},
+		{"--edition", "pocket", "example.com"},
+		{"-Z", "example.com"},
 	}
 
-	if _, err := stderrCapture.Seek(0, 0); err != nil {
-		t.Fatalf("stderr seek failed: %v", err)
-	}
-	stderrBytes, err := io.ReadAll(stderrCapture)
-	if err != nil {
-		t.Fatalf("stderr read failed: %v", err)
-	}
-	if len(stderrBytes) != 0 {
-		t.Fatalf("expected no stderr output, got %q", string(stderrBytes))
-	}
-}
-
-func TestRunCLIPropagatesPingError(t *testing.T) {
-	var output bytes.Buffer
-	sentinel := errors.New("boom")
-
-	err := runCLI(
-		[]string{"-server", "mc.example.com"},
-		&output,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			return 0, sentinel
-		},
-	)
-	if !errors.Is(err, sentinel) {
-		t.Fatalf("runCLI() error = %v, want %v", err, sentinel)
-	}
-	if output.Len() != 0 {
-		t.Fatalf("runCLI() wrote output when ping failed: %q", output.String())
-	}
-}
-
-func TestNormalizeOutputFormat(t *testing.T) {
-	tests := []struct {
-		name      string
-		format    string
-		want      string
-		expectErr bool
-	}{
-		{name: "default empty", format: "", want: "text"},
-		{name: "whitespace text", format: "  text  ", want: "text"},
-		{name: "uppercase json", format: "JSON", want: "json"},
-		{name: "unsupported", format: "yaml", expectErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := normalizeOutputFormat(tt.format)
-			if tt.expectErr {
-				if err == nil {
-					t.Fatalf("normalizeOutputFormat(%q) expected error", tt.format)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("normalizeOutputFormat(%q) error: %v", tt.format, err)
-			}
-			if got != tt.want {
-				t.Fatalf("normalizeOutputFormat(%q) = %q, want %q", tt.format, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseCLIConfig(t *testing.T) {
-	config, err := parseCLIConfig([]string{"-server", " trimmed.example ", "-port", "25570", "-timeout", "3s", "-allow-private", "-format", "JSON", "-6"})
-	if err != nil {
-		t.Fatalf("parseCLIConfig() error: %v", err)
-	}
-	if config.Endpoint.Host != "trimmed.example" {
-		t.Fatalf("server = %q, want trimmed.example", config.Endpoint.Host)
-	}
-	if config.Endpoint.Port != 25570 {
-		t.Fatalf("port = %d, want 25570", config.Endpoint.Port)
-	}
-	if config.Timeout != 3*time.Second {
-		t.Fatalf("timeout = %s, want 3s", config.Timeout)
-	}
-	if config.Format != "json" {
-		t.Fatalf("format = %q, want json", config.Format)
-	}
-	if !config.Options.allowPrivateAddresses {
-		t.Fatal("allowPrivateAddresses = false, want true")
-	}
-	if config.Options.addressFamily != addressFamily6 {
-		t.Fatalf("addressFamily = %v, want IPv6", config.Options.addressFamily)
-	}
-	if config.ShowVersion {
-		t.Fatal("ShowVersion = true, want false")
-	}
-}
-
-func TestParseCLIConfigVersion(t *testing.T) {
-	config, err := parseCLIConfig([]string{"-version"})
-	if err != nil {
-		t.Fatalf("parseCLIConfig() error: %v", err)
-	}
-	if !config.ShowVersion {
-		t.Fatal("ShowVersion = false, want true")
-	}
-}
-
-func TestParseAddressFamily(t *testing.T) {
-	tests := []struct {
-		name      string
-		forceIPv4 bool
-		forceIPv6 bool
-		want      addressFamily
-		expectErr bool
-	}{
-		{name: "default", want: addressFamilyAny},
-		{name: "force ipv4", forceIPv4: true, want: addressFamily4},
-		{name: "force ipv6", forceIPv6: true, want: addressFamily6},
-		{name: "conflict", forceIPv4: true, forceIPv6: true, expectErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseAddressFamily(tt.forceIPv4, tt.forceIPv6)
-			if tt.expectErr {
-				if err == nil {
-					t.Fatal("parseAddressFamily() expected error")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("parseAddressFamily() error = %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("parseAddressFamily() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestRenderResult(t *testing.T) {
-	target := newEndpoint("mc.example.com", defaultMinecraftPort)
-
-	if got := renderResult("text", target, 12); got != "Ping time is 12 ms" {
-		t.Fatalf("renderResult(text) = %q", got)
-	}
-
-	got := renderResult("json", target, 12)
-	var result pingResult
-	if err := json.Unmarshal([]byte(got), &result); err != nil {
-		t.Fatalf("json.Unmarshal() error: %v", err)
-	}
-	if result.Server != "mc.example.com" || result.LatencyMs != 12 {
-		t.Fatalf("renderResult(json) = %+v", result)
-	}
-}
-
-func TestRunSuccess(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	rc := run(
-		[]string{"minecraft-ping", "-server", "mc.example.com"},
-		&stdout,
-		&stderr,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			return 11, nil
-		},
-	)
-	if rc != 0 {
-		t.Fatalf("run() rc = %d, want 0", rc)
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("run() wrote stderr on success: %q", stderr.String())
-	}
-	if stdout.String() != "Ping time is 11 ms\n" {
-		t.Fatalf("run() stdout = %q, want %q", stdout.String(), "Ping time is 11 ms\n")
-	}
-}
-
-func TestRunHelpWritesUsageToStdout(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	called := false
-
-	rc := run(
-		[]string{"minecraft-ping", "-help"},
-		&stdout,
-		&stderr,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			called = true
-			return 0, nil
-		},
-	)
-	if rc != 0 {
-		t.Fatalf("run() rc = %d, want 0", rc)
-	}
-	if called {
-		t.Fatal("run() called ping function for help")
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("run() wrote stderr for help: %q", stderr.String())
-	}
-
-	help := stdout.String()
-	for _, want := range []string{
-		"Usage:\n  minecraft-ping [flags]\n",
-		"Flags:\n",
-		"Force IPv4",
-		"Force IPv6",
-		"Minecraft server to ping",
-		"Output format: text or json",
-		"Print version and exit",
-	} {
-		if !strings.Contains(help, want) {
-			t.Fatalf("run() help output missing %q in %q", want, help)
+	for _, args := range tests {
+		if _, status := parseCLIConfig(args); status != parseStatusInvalid {
+			t.Fatalf("parseCLIConfig(%v) status = %v, want invalid", args, status)
 		}
 	}
 }
 
-func TestRunVersionWritesVersionToStdout(t *testing.T) {
+func TestRunWithRuntimeWritesHelpAndVersion(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	called := false
 
-	rc := run(
-		[]string{"minecraft-ping", "-version"},
-		&stdout,
-		&stderr,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			called = true
-			return 0, nil
-		},
-	)
-	if rc != 0 {
-		t.Fatalf("run() rc = %d, want 0", rc)
+	if rc := runWithRuntime([]string{"minecraft-ping", "-h"}, &stdout, &stderr, defaultCLIRuntime()); rc != 0 {
+		t.Fatalf("help rc = %d, want 0", rc)
 	}
-	if called {
-		t.Fatal("run() called ping function for version")
+	if !strings.Contains(stdout.String(), "Usage: minecraft-ping [options] destination") {
+		t.Fatalf("help output = %q", stdout.String())
 	}
-	if stderr.Len() != 0 {
-		t.Fatalf("run() wrote stderr for version: %q", stderr.String())
+
+	stdout.Reset()
+	stderr.Reset()
+	if rc := runWithRuntime([]string{"minecraft-ping", "-V"}, &stdout, &stderr, defaultCLIRuntime()); rc != 0 {
+		t.Fatalf("version rc = %d, want 0", rc)
 	}
 	if got := stdout.String(); got != "minecraft-ping dev\n" {
-		t.Fatalf("run() stdout = %q, want %q", got, "minecraft-ping dev\n")
+		t.Fatalf("version output = %q", got)
 	}
 }
 
-func TestRunInvalidFlagWritesUsageToStderr(t *testing.T) {
+func TestRunWithRuntimeWritesUsageOnInvalidArgv(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	rc := run(
-		[]string{"minecraft-ping", "-unknown-flag"},
-		&stdout,
-		&stderr,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			return 0, nil
-		},
-	)
-	if rc != 1 {
-		t.Fatalf("run() rc = %d, want 1", rc)
+	rc := runWithRuntime([]string{"minecraft-ping", "-j", "-c", "2", "example.com"}, &stdout, &stderr, defaultCLIRuntime())
+	if rc != 2 {
+		t.Fatalf("rc = %d, want 2", rc)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("run() wrote stdout for invalid flag: %q", stdout.String())
+	if !strings.Contains(stdout.String(), "Usage: minecraft-ping [options] destination") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunWithRuntimeJSONProbe(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	probe := &stubPreparedProbe{
+		bannerText:  "unused",
+		summaryText: "unused",
+		samples: []probeSample{{
+			latency: 12 * time.Millisecond,
+		}},
 	}
 
-	message := stderr.String()
+	rc := runWithRuntime(
+		[]string{"minecraft-ping", "-j", "example.com"},
+		&stdout,
+		&stderr,
+		cliRuntime{
+			newContext: func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			session:    defaultSessionRuntime(),
+			prepare: func(context.Context, cliConfig) (preparedProbe, error) {
+				return probe, nil
+			},
+		},
+	)
+	if rc != 0 {
+		t.Fatalf("rc = %d, want 0", rc)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+
+	var result pingResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if result.Server != "example.com" || result.LatencyMs != 12 {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestRunWithRuntimeTextSession(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	probe := &stubPreparedProbe{
+		bannerText:  "PING example.com (203.0.113.10) port 25565 [java]:",
+		summaryText: "example.com",
+		samples: []probeSample{
+			{latency: 12 * time.Millisecond, remote: mustAddrPort(t, "203.0.113.10:25565")},
+			{latency: 15 * time.Millisecond, remote: mustAddrPort(t, "203.0.113.10:25565")},
+		},
+	}
+
+	nowValues := []time.Time{
+		time.Unix(100, 0),
+		time.Unix(100, 0),
+		time.Unix(100, 500_000_000),
+		time.Unix(101, 0),
+		time.Unix(102, 0),
+	}
+	nowIndex := 0
+	now := func() time.Time {
+		if nowIndex >= len(nowValues) {
+			return nowValues[len(nowValues)-1]
+		}
+		value := nowValues[nowIndex]
+		nowIndex++
+		return value
+	}
+
+	rc := runWithRuntime(
+		[]string{"minecraft-ping", "-c", "2", "example.com"},
+		&stdout,
+		&stderr,
+		cliRuntime{
+			newContext: func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			session: sessionRuntime{
+				now: now,
+				sleep: func(context.Context, time.Duration) error {
+					return nil
+				},
+			},
+			prepare: func(context.Context, cliConfig) (preparedProbe, error) {
+				return probe, nil
+			},
+		},
+	)
+	if rc != 0 {
+		t.Fatalf("rc = %d, want 0", rc)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+
+	output := stdout.String()
 	for _, want := range []string{
-		"flag provided but not defined: -unknown-flag",
-		"Usage:\n  minecraft-ping [flags]\n",
-		"Force IPv6",
+		"PING example.com (203.0.113.10) port 25565 [java]:",
+		"pong from 203.0.113.10:25565: seq=1 time=12.000 ms",
+		"pong from 203.0.113.10:25565: seq=2 time=15.000 ms",
+		"--- example.com ping statistics ---",
+		"2 probes transmitted, 2 received, 0% packet loss",
+		"rtt min/avg/max/mdev = 12.000/13.500/15.000/1.500 ms",
 	} {
-		if !strings.Contains(message, want) {
-			t.Fatalf("run() stderr missing %q in %q", want, message)
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q in %q", want, output)
 		}
 	}
 }
 
-func TestRunFailureWritesError(t *testing.T) {
+func TestRunWithRuntimeTimestampModeOnlyStampsReplyLines(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	rc := run(
-		[]string{"minecraft-ping", "-format", "xml"},
+	probe := &stubPreparedProbe{
+		bannerText:  "PING example.com (203.0.113.10) port 25565 [java]:",
+		summaryText: "example.com",
+		samples: []probeSample{
+			{latency: 12 * time.Millisecond, remote: mustAddrPort(t, "203.0.113.10:25565")},
+		},
+	}
+
+	nowValues := []time.Time{
+		time.Unix(100, 0),
+		time.Unix(100, 0),
+		time.Unix(100, 0),
+		time.Unix(101, 0),
+	}
+	nowIndex := 0
+	now := func() time.Time {
+		if nowIndex >= len(nowValues) {
+			return nowValues[len(nowValues)-1]
+		}
+		value := nowValues[nowIndex]
+		nowIndex++
+		return value
+	}
+
+	rc := runWithRuntime(
+		[]string{"minecraft-ping", "-D", "-c", "1", "example.com"},
 		&stdout,
 		&stderr,
-		func(endpoint, time.Duration, pingOptions) (int, error) {
-			return 99, nil
+		cliRuntime{
+			newContext: func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			session: sessionRuntime{
+				now: now,
+				sleep: func(context.Context, time.Duration) error {
+					return nil
+				},
+			},
+			prepare: func(context.Context, cliConfig) (preparedProbe, error) {
+				return probe, nil
+			},
 		},
 	)
-	if rc != 1 {
-		t.Fatalf("run() rc = %d, want 1", rc)
+	if rc != 0 {
+		t.Fatalf("rc = %d, want 0", rc)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("run() wrote stdout on failure: %q", stdout.String())
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "expected text or json") {
-		t.Fatalf("run() stderr = %q, expected format validation message", stderr.String())
+
+	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(lines) < 5 {
+		t.Fatalf("unexpected output: %q", stdout.String())
+	}
+	if strings.HasPrefix(lines[0], "[") {
+		t.Fatalf("banner line should not be timestamped: %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "[100.000000] pong from 203.0.113.10:25565: seq=1 time=12.000 ms") {
+		t.Fatalf("reply line = %q", lines[1])
+	}
+	if strings.HasPrefix(lines[3], "[") || strings.HasPrefix(lines[4], "[") {
+		t.Fatalf("summary lines should not be timestamped: %q", stdout.String())
 	}
 }
 
-func TestRunUsesExitCode(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	rc := run([]string{"minecraft-ping", "-format", "xml"}, &stdout, &stderr, func(endpoint, time.Duration, pingOptions) (int, error) { return 0, nil })
-	if rc != 1 {
-		t.Fatalf("run() exit code = %d, want 1", rc)
+func mustAddrPort(t *testing.T, raw string) netip.AddrPort {
+	t.Helper()
+
+	addr, err := netip.ParseAddrPort(raw)
+	if err != nil {
+		t.Fatalf("ParseAddrPort(%q): %v", raw, err)
 	}
-	if stdout.Len() != 0 {
-		t.Fatalf("run() wrote stdout on failure: %q", stdout.String())
-	}
-	if !strings.Contains(stderr.String(), "expected text or json") {
-		t.Fatalf("run() stderr = %q, expected format validation message", stderr.String())
-	}
+	return addr
 }

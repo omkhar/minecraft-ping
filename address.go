@@ -5,30 +5,6 @@ import (
 	"net/netip"
 )
 
-var nonPublicIPPrefixes = []netip.Prefix{
-	mustParsePrefix("0.0.0.0/8"),
-	mustParsePrefix("10.0.0.0/8"),
-	mustParsePrefix("100.64.0.0/10"),
-	mustParsePrefix("127.0.0.0/8"),
-	mustParsePrefix("169.254.0.0/16"),
-	mustParsePrefix("172.16.0.0/12"),
-	mustParsePrefix("192.0.0.0/24"),
-	mustParsePrefix("192.0.2.0/24"),
-	mustParsePrefix("192.168.0.0/16"),
-	mustParsePrefix("198.18.0.0/15"),
-	mustParsePrefix("198.51.100.0/24"),
-	mustParsePrefix("203.0.113.0/24"),
-	mustParsePrefix("224.0.0.0/4"),
-	mustParsePrefix("240.0.0.0/4"),
-	mustParsePrefix("::/128"),
-	mustParsePrefix("::1/128"),
-	mustParsePrefix("100::/64"),
-	mustParsePrefix("2001:db8::/32"),
-	mustParsePrefix("fc00::/7"),
-	mustParsePrefix("fe80::/10"),
-	mustParsePrefix("ff00::/8"),
-}
-
 type dialCandidate struct {
 	address netip.AddrPort
 }
@@ -41,23 +17,23 @@ func (c dialCandidate) Network() string {
 	return "tcp6"
 }
 
+func (c dialCandidate) UDPNetwork() string {
+	if c.address.Addr().Is4() {
+		return "udp4"
+	}
+
+	return "udp6"
+}
+
 func (c dialCandidate) String() string {
 	return c.address.String()
 }
 
-func isNonPublicIPAddress(addr netip.Addr) bool {
-	if !addr.IsValid() {
-		return true
+func (c dialCandidate) endpoint() endpoint {
+	return endpoint{
+		Host: c.address.Addr().String(),
+		Port: int(c.address.Port()),
 	}
-
-	addr = addr.Unmap()
-	for _, prefix := range nonPublicIPPrefixes {
-		if prefix.Contains(addr) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func dialCandidateForLiteralIP(target endpoint, options pingOptions) ([]dialCandidate, error) {
@@ -67,9 +43,6 @@ func dialCandidateForLiteralIP(target endpoint, options pingOptions) ([]dialCand
 	}
 	if !options.addressFamily.matches(addr) {
 		return nil, fmt.Errorf("%s is an %s address but %s was requested", target.Host, addressFamilyForAddr(addr), options.addressFamily.forcedFlag())
-	}
-	if !options.allowPrivateAddresses && isNonPublicIPAddress(addr) {
-		return nil, fmt.Errorf("refusing to connect to non-public address %s", addr)
 	}
 
 	port, err := target.uint16Port()
@@ -83,6 +56,12 @@ func dialCandidateForLiteralIP(target endpoint, options pingOptions) ([]dialCand
 }
 
 func dialCandidatesForResolvedIPs(host string, port uint16, addrs []netip.Addr, options pingOptions) ([]dialCandidate, error) {
+	return dialCandidatesForResolvedIPsByAddr(host, addrs, options.addressFamily, func(netip.Addr) uint16 {
+		return port
+	})
+}
+
+func dialCandidatesForResolvedIPsByAddr(host string, addrs []netip.Addr, family addressFamily, portForAddr func(netip.Addr) uint16) ([]dialCandidate, error) {
 	if len(addrs) == 0 {
 		return nil, fmt.Errorf("no addresses resolved for %s", host)
 	}
@@ -93,28 +72,27 @@ func dialCandidatesForResolvedIPs(host string, port uint16, addrs []netip.Addr, 
 		if !addr.IsValid() {
 			continue
 		}
-		if !options.addressFamily.matches(addr) {
-			continue
-		}
-		if !options.allowPrivateAddresses && isNonPublicIPAddress(addr) {
+		if !family.matches(addr) {
 			continue
 		}
 		filtered = append(filtered, addr)
 	}
 
-	candidates := buildDialCandidates(filtered, port)
+	candidates := buildDialCandidatesWithPortFunc(filtered, portForAddr)
 	if len(candidates) != 0 {
 		return candidates, nil
-	}
-
-	if !options.allowPrivateAddresses {
-		return nil, fmt.Errorf("resolved only to non-public addresses for %s", host)
 	}
 
 	return nil, fmt.Errorf("no dialable addresses resolved for %s", host)
 }
 
 func buildDialCandidates(addrs []netip.Addr, port uint16) []dialCandidate {
+	return buildDialCandidatesWithPortFunc(addrs, func(netip.Addr) uint16 {
+		return port
+	})
+}
+
+func buildDialCandidatesWithPortFunc(addrs []netip.Addr, portForAddr func(netip.Addr) uint16) []dialCandidate {
 	seen := make(map[netip.Addr]struct{}, len(addrs))
 
 	var (
@@ -134,7 +112,7 @@ func buildDialCandidates(addrs []netip.Addr, port uint16) []dialCandidate {
 		}
 		seen[addr] = struct{}{}
 
-		candidate := dialCandidate{address: netip.AddrPortFrom(addr, port)}
+		candidate := dialCandidate{address: netip.AddrPortFrom(addr, portForAddr(addr))}
 		if !primaryFamilySet {
 			primaryFamilyIsV6 = addr.Is6()
 			primaryFamilySet = true

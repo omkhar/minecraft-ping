@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	defaultMinecraftPort   = 25565
+	defaultMinecraftPort   = defaultJavaPort
 	maxServerAddressLength = 253
 )
 
@@ -23,8 +23,8 @@ const (
 )
 
 type pingOptions struct {
-	allowPrivateAddresses bool
-	addressFamily         addressFamily
+	addressFamily addressFamily
+	edition       edition
 }
 
 type endpoint struct {
@@ -187,12 +187,4 @@ func toUint16(value int) (uint16, error) {
 		return 0, fmt.Errorf("value %d is out of uint16 range", value)
 	}
 	return uint16(value), nil // #nosec G115 -- explicit bounds check above
-}
-
-func mustParsePrefix(raw string) netip.Prefix {
-	prefix, err := netip.ParsePrefix(raw)
-	if err != nil {
-		panic(fmt.Sprintf("invalid IP prefix %q: %v", raw, err))
-	}
-	return prefix
 }
