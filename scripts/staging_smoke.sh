@@ -52,6 +52,7 @@ run_ping_smoke() {
 
 start_ipv6_loopback_relay() {
   python3 - "$PORT_IPV6" "$PORT_IPV4" <<'PY' &
+from contextlib import suppress
 import selectors
 import socket
 import sys
@@ -61,12 +62,17 @@ target_port = int(sys.argv[2])
 
 listener = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
 listener.bind(("::1", listen_port))
 listener.listen()
 
 while True:
     client, _ = listener.accept()
-    upstream = socket.create_connection(("127.0.0.1", target_port))
+    try:
+        upstream = socket.create_connection(("127.0.0.1", target_port))
+    except OSError:
+        client.close()
+        continue
 
     sel = selectors.DefaultSelector()
     sel.register(client, selectors.EVENT_READ, upstream)
@@ -81,12 +87,14 @@ while True:
                 if not payload:
                     raise EOFError
                 destination.sendall(payload)
-    except EOFError:
+    except (EOFError, OSError):
         pass
     finally:
         sel.close()
-        client.close()
-        upstream.close()
+        with suppress(OSError):
+            client.close()
+        with suppress(OSError):
+            upstream.close()
 PY
 
   IPV6_RELAY_PID=$!
