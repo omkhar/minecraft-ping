@@ -130,7 +130,7 @@ func pingBedrock(target endpoint, timeout time.Duration, options pingOptions) (i
 }
 
 func bedrockTargetSpecFromEndpoint(target endpoint, family addressFamily) targetSpec {
-	explicitPort := true
+	var explicitPort bool
 
 	if literal, ok := target.literalIP(); ok {
 		explicitPort = target.Port != newTargetSpec(target.Host, 0, false).portForAddr(literal, editionBedrock)
