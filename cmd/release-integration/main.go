@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -488,12 +487,8 @@ func newIPv6Relay(listenHost string, listenPort int, targetHost string, targetPo
 			if network != "tcp6" {
 				return nil
 			}
-			if runtime.GOOS == "windows" {
-				return nil
-			}
 			if err := rawConn.Control(func(fd uintptr) {
-				// #nosec G115 -- raw socket file descriptors fit in int on supported unix platforms.
-				controlErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 1)
+				controlErr = setIPv6Only(fd)
 			}); err != nil {
 				return err
 			}
