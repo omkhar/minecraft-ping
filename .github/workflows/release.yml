@@ -177,11 +177,13 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Attest release artifacts
+        if: ${{ github.event.repository.private == false }}
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-checksums: dist/checksums.txt
 
       - name: Attest SBOMs
+        if: ${{ github.event.repository.private == false }}
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: ${{ steps.sbom-subjects.outputs.paths }}
