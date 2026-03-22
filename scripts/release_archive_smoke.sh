@@ -10,9 +10,13 @@ fi
 
 require_single_archive() {
   local pattern="$1"
-  local matches
+  local match
+  local -a matches=()
 
-  mapfile -t matches < <(find "$DIST_DIR" -maxdepth 1 -type f -name "$pattern" | sort)
+  while IFS= read -r match; do
+    [[ -n "$match" ]] || continue
+    matches+=("$match")
+  done < <(find "$DIST_DIR" -maxdepth 1 -type f -name "$pattern" | sort)
   if [[ "${#matches[@]}" -ne 1 ]]; then
     echo "expected exactly one archive matching $pattern, found ${#matches[@]}" >&2
     exit 1

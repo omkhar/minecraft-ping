@@ -43,6 +43,12 @@ If you have the tools installed locally, it is also worth running the same class
 
 CI remains the source of truth for exact tool versions and matrix coverage.
 
+If `mandoc` is available locally, it is also worth checking the man page source:
+
+```bash
+mandoc -Tlint man/minecraft-ping.1
+```
+
 ## Networking, Packaging, And Release-Path Changes
 
 If your change touches networking behavior, release automation, or integration harnesses, also validate the release path locally:
@@ -119,6 +125,7 @@ It also verifies that the packaged `minecraft-ping(1)` man page is installed.
 - cross-platform `go test ./...` on macOS, Linux, and Windows for `amd64` and `arm64`
 - lint, security, and workflow policy checks
 - GoReleaser snapshot builds
+- release archive smoke tests
 - Linux package smoke tests
 - release-archive integration against the staging backend or staging container
 
@@ -138,7 +145,6 @@ Maintainer flow:
 Release outputs:
 
 - Signed release artifacts are always published.
-- The current release workflow is configured to publish signed SPDX SBOM assets for new releases.
-- In the current user-owned private-repository mode, GitHub artifact attestations are unavailable.
-- The current private-repository release workflow is configured to publish signed artifacts and signed SBOM assets without GitHub attestations.
+- The release workflow is configured to publish signed SPDX SBOM assets for each release.
 - GitHub artifact attestations and provenance bundles are published automatically when repository visibility and ownership support them.
+- Until GitHub supports first-party attestations for the active repository configuration, releases continue to publish signed artifacts and signed SBOM assets.

@@ -9,7 +9,7 @@
 
 ## Installation
 
-While the repository remains private, install from an authorized checkout:
+Install from a checkout:
 
 ```bash
 go install .
@@ -21,8 +21,8 @@ If you want a local binary in the repository root instead:
 go build -o minecraft-ping .
 ```
 
-Signed release archives and Linux packages are published from tagged releases.
-For public consumers, the canonical install path will be the signed release artifacts published on [GitHub Releases](https://github.com/omkhar/minecraft-ping/releases).
+Signed release archives and Linux packages are published from tagged releases on [GitHub Releases](https://github.com/omkhar/minecraft-ping/releases).
+When the repository is private, use an authorized checkout or the corresponding authorized release artifacts.
 Linux packages install the `minecraft-ping(1)` man page, and release archives ship the same source at `man/minecraft-ping.1`.
 
 ## Usage
@@ -65,8 +65,8 @@ minecraft-ping -j mc.example.com
 - `-D`: prefix live reply lines with a Unix timestamp
 - `-n`: numeric output only
 - `-j`: emit a single JSON probe result
-- `-V`: print version and exit
-- `-h`: print help and exit
+- `-V`, `--version`: print version and exit
+- `-h`, `--help`: print help and exit
 - `--edition java|bedrock`: select the Minecraft edition
 - `--java`: alias for `--edition java`
 - `--bedrock`: alias for `--edition bedrock`
@@ -159,10 +159,9 @@ For packaging changes, also run `scripts/release_archive_smoke.sh dist` after a 
 Releases are built from GitHub Actions on signed, annotated tags at the current `main` head.
 
 - Signed release artifacts are published for macOS, Linux, and Windows.
-- The current release workflow is configured to publish signed SPDX SBOM assets for new releases.
-- In the current user-owned private-repository mode, GitHub artifact attestations are unavailable.
-- The current private-repository release workflow is configured to publish signed artifacts and signed SBOM assets without GitHub attestations.
-- GitHub artifact attestations and downloaded provenance bundles are enabled automatically when repository visibility and ownership support them.
+- The release workflow is configured to publish signed SPDX SBOM assets for each release.
+- GitHub artifact attestations and downloaded provenance bundles are published automatically when repository visibility and ownership support them.
+- Until GitHub supports first-party attestations for the active repository configuration, releases continue to publish signed artifacts and signed SBOM assets.
 
 ## License
 

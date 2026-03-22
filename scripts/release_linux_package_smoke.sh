@@ -37,17 +37,33 @@ esac
 find_package() {
   local pattern
   local match
+  local -a matches=()
+  local -a unique_matches=()
 
   for pattern in "$@"; do
-    match="$(find "$DIST_DIR" -maxdepth 1 -type f -name "$pattern" | sort | head -n 1 || true)"
-    if [[ -n "$match" ]]; then
-      basename "$match"
-      return 0
-    fi
+    while IFS= read -r match; do
+      [[ -n "$match" ]] || continue
+      matches+=("$(basename "$match")")
+    done < <(find "$DIST_DIR" -maxdepth 1 -type f -name "$pattern" | sort)
   done
 
-  echo "missing release package matching patterns: $*" >&2
-  exit 1
+  if [[ "${#matches[@]}" -eq 0 ]]; then
+    echo "missing release package matching patterns: $*" >&2
+    exit 1
+  fi
+
+  while IFS= read -r match; do
+    [[ -n "$match" ]] || continue
+    unique_matches+=("$match")
+  done < <(printf '%s\n' "${matches[@]}" | sort -u)
+  matches=("${unique_matches[@]}")
+  if [[ "${#matches[@]}" -ne 1 ]]; then
+    printf 'expected exactly one package for patterns %s, found:\n' "$*" >&2
+    printf '  %s\n' "${matches[@]}" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${matches[0]}"
 }
 
 deb_pkg="$(find_package "${deb_patterns[@]}")"

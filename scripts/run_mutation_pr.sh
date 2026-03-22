@@ -8,9 +8,18 @@ if [[ ! -x "$MUTEST_BIN" ]]; then
 fi
 
 base_ref="${GITHUB_BASE_REF:-main}"
-git fetch origin "$base_ref" --depth=1 >/dev/null 2>&1 || true
+fetch_remote="origin"
+if [[ -n "${GITHUB_TOKEN:-}" && -n "${GITHUB_REPOSITORY:-}" ]]; then
+  fetch_remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+fi
 
-mapfile -t go_files < <(git diff --name-only "origin/$base_ref...HEAD" -- '*.go' || true)
+git fetch "$fetch_remote" "$base_ref:refs/remotes/origin/$base_ref" --depth=1 >/dev/null
+if ! git rev-parse --verify "origin/$base_ref^{commit}" >/dev/null 2>&1; then
+  echo "unable to resolve origin/$base_ref after fetch" >&2
+  exit 1
+fi
+
+mapfile -t go_files < <(git diff --name-only "origin/$base_ref...HEAD" -- '*.go')
 if [[ "${#go_files[@]}" -eq 0 ]]; then
   echo "No Go files changed; skipping PR mutation run."
   exit 0

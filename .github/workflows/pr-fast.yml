@@ -212,4 +212,6 @@ jobs:
             GOTOOLCHAIN=auto go install "github.com/avito-tech/go-mutesting/cmd/go-mutesting@${GO_MUTESTING_VERSION}"
           fi
       - name: Run diff-scoped mutation tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: scripts/run_mutation_pr.sh
