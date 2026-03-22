@@ -56,7 +56,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/go/bin/go-mutesting
-          key: go-mutesting-${{ runner.os }}-${{ env.GO_MUTESTING_VERSION }}
+          key: go-mutesting-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.GO_MUTESTING_VERSION }}
       - name: Install go-mutesting
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/go-mutesting" ]]; then

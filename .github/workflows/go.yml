@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/go/bin
-          key: go-tools-lint-${{ runner.os }}-${{ env.ACTIONLINT_VERSION }}-${{ env.STATICCHECK_VERSION }}-${{ env.INEFFASSIGN_VERSION }}-${{ env.GOCRITIC_VERSION }}-${{ env.GOIMPORTS_MODULE_VERSION }}
+          key: go-tools-lint-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.ACTIONLINT_VERSION }}-${{ env.STATICCHECK_VERSION }}-${{ env.INEFFASSIGN_VERSION }}-${{ env.GOCRITIC_VERSION }}-${{ env.GOIMPORTS_MODULE_VERSION }}
       - name: Install actionlint
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/actionlint" ]]; then
@@ -131,7 +131,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/go/bin
-          key: go-tools-security-${{ runner.os }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}-${{ env.GITLEAKS_VERSION }}
+          key: go-tools-security-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}-${{ env.GITLEAKS_VERSION }}
       - name: Install govulncheck
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/govulncheck" ]]; then
