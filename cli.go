@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math"
+	"math/big"
 	"os"
 	"os/signal"
 	"strconv"
@@ -158,33 +160,53 @@ func scanArgv(args []string) (rawCLIConfig, parseStatus) {
 func consumeLongFlag(raw rawCLIConfig, arg string, args []string, index *int) (rawCLIConfig, bool) {
 	name := arg
 	value := ""
+	hasInlineValue := false
 	if eq := strings.IndexRune(arg, '='); eq >= 0 {
 		name = arg[:eq]
 		value = arg[eq+1:]
+		hasInlineValue = true
 	}
 
 	switch name {
 	case "--edition":
-		if value == "" {
+		if hasInlineValue && value == "" {
+			return raw, false
+		}
+		if !hasInlineValue {
 			if *index+1 >= len(args) {
 				return raw, false
 			}
 			*index++
 			value = args[*index]
 		}
+		if strings.TrimSpace(value) == "" {
+			return raw, false
+		}
 		raw.edition = value
 		raw.editionSet = true
 		return raw, true
 	case "--java":
+		if hasInlineValue {
+			return raw, false
+		}
 		raw.javaAlias = true
 		return raw, true
 	case "--bedrock":
+		if hasInlineValue {
+			return raw, false
+		}
 		raw.bedrockAlias = true
 		return raw, true
 	case "--help":
+		if hasInlineValue {
+			return raw, false
+		}
 		raw.showHelp = true
 		return raw, true
 	case "--version":
+		if hasInlineValue {
+			return raw, false
+		}
 		raw.showVersion = true
 		return raw, true
 	default:
@@ -341,11 +363,27 @@ func normalizeCLIConfig(raw rawCLIConfig) (cliConfig, parseStatus) {
 }
 
 func parseSecondsDuration(raw string) (time.Duration, bool) {
-	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
-	if err != nil || value <= 0 {
+	raw = strings.TrimSpace(raw)
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
 		return 0, false
 	}
-	return time.Duration(value * float64(time.Second)), true
+
+	seconds, ok := new(big.Rat).SetString(raw)
+	if !ok || seconds.Sign() <= 0 {
+		return 0, false
+	}
+
+	nanoseconds := new(big.Rat).Mul(seconds, big.NewRat(int64(time.Second), 1))
+	if nanoseconds.Cmp(big.NewRat(math.MaxInt64, 1)) > 0 {
+		return 0, false
+	}
+	duration := new(big.Int).Quo(nanoseconds.Num(), nanoseconds.Denom())
+	if duration.Sign() <= 0 || !duration.IsInt64() {
+		return 0, false
+	}
+
+	return time.Duration(duration.Int64()), true
 }
 
 func durationToLatencyMs(d time.Duration) int {
