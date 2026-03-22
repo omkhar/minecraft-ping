@@ -1,13 +1,22 @@
 # Architecture
 
-`minecraft-ping` is a small Go CLI that measures Minecraft server latency with `ping`-style ergonomics while staying honest about the underlying protocols.
+`minecraft-ping` is a small Go CLI that measures Minecraft server latency with `ping`-style ergonomics while staying honest about the underlying Minecraft protocols.
 
-## Design Goals
+## Design Principles
 
-- Keep the CLI familiar to people who use Unix `ping`.
-- Keep Java and Bedrock transport logic separate.
+- Keep the CLI familiar to people who already use Unix `ping`.
+- Keep Java and Bedrock transport logic separate and explicit.
 - Prefer simple data flow over layered abstractions.
-- Verify behavior with real release artifacts, not only unit tests.
+- Validate behavior with real release artifacts, not only `go run`.
+
+## Runtime Model
+
+The shipped binary has two top-level execution paths:
+
+- text mode: continuous by default, session-oriented, summary on exit
+- JSON mode: single probe, machine-readable output, intended for scripts
+
+Java Edition is the default. Bedrock Edition is selected explicitly with `--bedrock` or `--edition bedrock`. The CLI does not auto-detect editions.
 
 ## Repository Layout
 
@@ -23,7 +32,7 @@
 - `probe.go`: edition dispatch for prepared probes
 - `session.go`: text-mode session loop and summary rendering
 - `protocol.go`: Java packet serialization and parsing
-- `cmd/staging-server`: portable staging backend for integration validation
+- `cmd/staging-server`: portable staging backend used only for integration validation
 - `cmd/release-integration`: release-artifact integration harness
 
 ## Probe Flow
@@ -31,23 +40,25 @@
 ### Java Edition
 
 1. Parse the positional destination.
-2. Apply Java default port behavior and SRV lookup when appropriate.
-3. Resolve and dial the TCP target.
-4. Perform handshake, status, and ping/pong exchange.
-5. Report latency and session statistics.
+2. Apply Java default-port behavior.
+3. Perform an SRV lookup only when the target is a hostname with no explicit port.
+4. Resolve and dial the TCP target.
+5. Perform the Minecraft handshake, status request, and ping/pong exchange.
+6. Report latency and session statistics.
 
 ### Bedrock Edition
 
 1. Parse the positional destination.
-2. Apply Bedrock default port behavior.
+2. Apply Bedrock default-port behavior, including `19133` for IPv6 when no port is explicit.
 3. Resolve and dial the UDP target.
 4. Send a RakNet unconnected ping.
-5. Validate the unconnected pong and report latency.
+5. Validate the unconnected pong.
+6. Report latency and session statistics.
 
-## Testing And Release Validation
+## Validation Model
 
 - Unit and CLI tests cover parsing, protocol behavior, and exit paths.
-- Fuzz targets exercise parser robustness.
-- Release validation runs against built release archives, not only `go run`.
-- Linux integration validates container-backed networking; macOS and Windows use the native staging backend.
-
+- Fuzz targets exercise Java packet parsing robustness.
+- `Main Verify` builds release archives and validates shipped binaries, not only source trees.
+- Release integration probes both Java and Bedrock over IPv4 and IPv6.
+- Linux release integration validates the container-backed path; macOS and Windows validate against the native staging backend.
