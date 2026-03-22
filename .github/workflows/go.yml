@@ -65,7 +65,7 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
       - name: Build
         run: go build -v ./...
 
@@ -152,7 +152,7 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
       - name: Build snapshot release artifacts
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
@@ -189,7 +189,9 @@ jobs:
           name: release-dist
           path: .
       - name: Smoke test Linux packages
-        run: scripts/release_linux_package_smoke.sh dist "${{ matrix.arch }}"
+        env:
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: scripts/release_linux_package_smoke.sh dist "$RELEASE_ARCH"
 
   release-archive-smoke:
     name: release-archive-smoke (${{ matrix.name }})
@@ -224,31 +226,37 @@ jobs:
       - name: Smoke test Unix archives
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          RELEASE_ARCHIVE_GLOB: ${{ matrix.artifact_glob }}
+          RELEASE_BINARY_NAME: ${{ matrix.binary_name }}
         run: |
-          archive="$(find dist -maxdepth 1 -type f -name '${{ matrix.artifact_glob }}' | sort | head -n 1)"
+          archive="$(find dist -maxdepth 1 -type f -name "$RELEASE_ARCHIVE_GLOB" | sort | head -n 1)"
           if [[ -z "$archive" ]]; then
-            echo "missing archive for pattern ${{ matrix.artifact_glob }}" >&2
+            echo "missing archive for pattern $RELEASE_ARCHIVE_GLOB" >&2
             exit 1
           fi
           tmpdir="$(mktemp -d)"
           tar -xzf "$archive" -C "$tmpdir"
-          "$tmpdir/${{ matrix.binary_name }}" -version
-          "$tmpdir/${{ matrix.binary_name }}" -help >/dev/null
+          "$tmpdir/$RELEASE_BINARY_NAME" -version
+          "$tmpdir/$RELEASE_BINARY_NAME" -help >/dev/null
       - name: Smoke test Windows archives
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          RELEASE_ARCHIVE_GLOB: ${{ matrix.artifact_glob }}
+          RELEASE_BINARY_NAME: ${{ matrix.binary_name }}
         run: |
-          $archive = Get-ChildItem dist -Filter '${{ matrix.artifact_glob }}' | Select-Object -First 1
+          $archive = Get-ChildItem dist -Filter $env:RELEASE_ARCHIVE_GLOB | Select-Object -First 1
           if (-not $archive) {
-            Write-Error "missing archive for pattern ${{ matrix.artifact_glob }}"
+            Write-Error "missing archive for pattern $env:RELEASE_ARCHIVE_GLOB"
           }
           $tmpdir = Join-Path $env:RUNNER_TEMP 'release-archive-smoke'
           if (Test-Path $tmpdir) {
             Remove-Item -Recurse -Force $tmpdir
           }
           Expand-Archive -Path $archive.FullName -DestinationPath $tmpdir
-          & (Join-Path $tmpdir '${{ matrix.binary_name }}') -version
-          & (Join-Path $tmpdir '${{ matrix.binary_name }}') -help | Out-Null
+          & (Join-Path $tmpdir $env:RELEASE_BINARY_NAME) -version
+          & (Join-Path $tmpdir $env:RELEASE_BINARY_NAME) -help | Out-Null
 
   staging-smoke:
     name: staging-smoke
