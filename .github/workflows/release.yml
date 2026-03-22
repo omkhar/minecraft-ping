@@ -24,6 +24,7 @@ jobs:
     environment: release
     permissions:
       artifact-metadata: write # Upload build provenance attestations for published release assets.
+      checks: read # Query Main Verify check runs on the tagged main commit before publishing.
       contents: write # Create the GitHub release and upload release assets for the pushed tag.
       id-token: write # Mint the OIDC identity token used for keyless Cosign signing.
     steps:
