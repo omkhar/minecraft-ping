@@ -94,8 +94,8 @@ Options:
   -D                    print unix timestamp before each output line
   -n                    numeric output only
   -j                    JSON output (single probe)
-  -V                    print version and exit
-  -h                    show help
+  -V, --version         print version and exit
+  -h, --help            show help
   --edition kind        java or bedrock
   --java                alias for --edition java
   --bedrock             alias for --edition bedrock
@@ -142,6 +142,9 @@ func scanArgv(args []string) (rawCLIConfig, parseStatus) {
 				return raw, parseStatusInvalid
 			}
 			raw = next
+			if raw.showHelp || raw.showVersion {
+				break
+			}
 			continue
 		}
 		next, ok := consumeShortFlags(raw, arg, args, &i)
@@ -149,6 +152,9 @@ func scanArgv(args []string) (rawCLIConfig, parseStatus) {
 			return raw, parseStatusInvalid
 		}
 		raw = next
+		if raw.showHelp || raw.showVersion {
+			break
+		}
 	}
 
 	if raw.showHelp {

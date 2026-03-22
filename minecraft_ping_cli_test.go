@@ -154,23 +154,54 @@ func TestParseSecondsDurationPreservesNanosecondBoundaries(t *testing.T) {
 }
 
 func TestRunWithRuntimeWritesHelpAndVersion(t *testing.T) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	tests := []struct {
+		name       string
+		argv       []string
+		wantRC     int
+		wantStdout string
+	}{
+		{
+			name:       "short help",
+			argv:       []string{"minecraft-ping", "-h"},
+			wantRC:     0,
+			wantStdout: "Usage: minecraft-ping [options] destination",
+		},
+		{
+			name:       "long help short circuits trailing invalid argv",
+			argv:       []string{"minecraft-ping", "--help", "--bedrock=java"},
+			wantRC:     0,
+			wantStdout: "Usage: minecraft-ping [options] destination",
+		},
+		{
+			name:       "short version",
+			argv:       []string{"minecraft-ping", "-V"},
+			wantRC:     0,
+			wantStdout: "minecraft-ping dev\n",
+		},
+		{
+			name:       "long version short circuits trailing invalid argv",
+			argv:       []string{"minecraft-ping", "--version", "--bedrock=java"},
+			wantRC:     0,
+			wantStdout: "minecraft-ping dev\n",
+		},
+	}
 
-	if rc := runWithRuntime([]string{"minecraft-ping", "-h"}, &stdout, &stderr, defaultCLIRuntime()); rc != 0 {
-		t.Fatalf("help rc = %d, want 0", rc)
-	}
-	if !strings.Contains(stdout.String(), "Usage: minecraft-ping [options] destination") {
-		t.Fatalf("help output = %q", stdout.String())
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
 
-	stdout.Reset()
-	stderr.Reset()
-	if rc := runWithRuntime([]string{"minecraft-ping", "-V"}, &stdout, &stderr, defaultCLIRuntime()); rc != 0 {
-		t.Fatalf("version rc = %d, want 0", rc)
-	}
-	if got := stdout.String(); got != "minecraft-ping dev\n" {
-		t.Fatalf("version output = %q", got)
+			rc := runWithRuntime(tt.argv, &stdout, &stderr, defaultCLIRuntime())
+			if rc != tt.wantRC {
+				t.Fatalf("rc = %d, want %d", rc, tt.wantRC)
+			}
+			if got := stdout.String(); got != tt.wantStdout && !strings.Contains(got, tt.wantStdout) {
+				t.Fatalf("stdout = %q", got)
+			}
+			if stderr.Len() != 0 {
+				t.Fatalf("stderr = %q, want empty", stderr.String())
+			}
+		})
 	}
 }
 

@@ -1,4 +1,4 @@
-.TH MINECRAFT-PING 1 "March 2026" "minecraft-ping" "User Commands"
+.TH MINECRAFT-PING 1 "2026-03-22" "minecraft-ping" "User Commands"
 .SH NAME
 minecraft-ping \- measure Minecraft server latency with ping-style ergonomics
 .SH SYNOPSIS
@@ -62,10 +62,10 @@ Use numeric output only.
 Emit a single JSON probe result.
 This mode is intended for scripts and automation.
 .TP
-.B -V
+.BR -V ", " --version
 Print the version and exit.
 .TP
-.B -h
+.BR -h ", " --help
 Print help and exit.
 .TP
 .BI "--edition " kind
@@ -135,7 +135,8 @@ At least one reply was received, or a JSON probe succeeded.
 No replies were received, or a JSON probe failed.
 .TP
 .B 2
-Invalid argv or a setup/runtime error occurred before a meaningful probe completed.
+Invalid argv or a setup or runtime error occurred
+before a meaningful probe completed.
 .SH EXAMPLES
 .EX
 minecraft-ping mc.example.com
@@ -149,7 +150,8 @@ minecraft-ping -j mc.example.com
 .IP \(bu 2
 Java probing uses the Minecraft status and ping/pong handshake over TCP.
 .IP \(bu 2
-Java performs an SRV lookup only when probing Java Edition with a hostname and no explicit port.
+Java performs an SRV lookup only when probing
+Java Edition with a hostname and no explicit port.
 .IP \(bu 2
 Bedrock probing uses RakNet unconnected ping/pong over UDP.
 .IP \(bu 2
