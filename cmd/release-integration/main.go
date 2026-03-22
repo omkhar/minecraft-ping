@@ -21,23 +21,27 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/omkhar/minecraft-ping/internal/stagingserver"
 )
 
 type config struct {
-	archiveGlob   string
-	backend       string
-	binaryName    string
-	binaryPath    string
-	containerCLI  string
-	containerName string
-	imageArchive  string
-	imageTag      string
-	ipv4Host      string
-	ipv4Port      int
-	ipv6Host      string
-	ipv6Port      int
-	probeTimeout  time.Duration
-	serverBinary  string
+	archiveGlob     string
+	backend         string
+	binaryName      string
+	binaryPath      string
+	containerCLI    string
+	containerName   string
+	imageArchive    string
+	imageTag        string
+	ipv4Host        string
+	ipv6Host        string
+	javaIPv4Port    int
+	javaIPv6Port    int
+	bedrockIPv4Port int
+	bedrockIPv6Port int
+	probeTimeout    time.Duration
+	serverBinary    string
 }
 
 type pingResult struct {
@@ -45,23 +49,66 @@ type pingResult struct {
 	LatencyMS int64  `json:"latency_ms"`
 }
 
+type probeSpec struct {
+	label      string
+	editionArg string
+	familyFlag string
+	host       string
+	port       int
+}
+
 const maxExtractedBinarySize int64 = 64 << 20
 
+func probeSpecs(cfg config) []probeSpec {
+	return []probeSpec{
+		{
+			label:      "java-ipv4",
+			familyFlag: "-4",
+			host:       cfg.ipv4Host,
+			port:       cfg.javaIPv4Port,
+		},
+		{
+			label:      "java-ipv6",
+			familyFlag: "-6",
+			host:       cfg.ipv6Host,
+			port:       cfg.javaIPv6Port,
+		},
+		{
+			label:      "bedrock-ipv4",
+			editionArg: "--bedrock",
+			familyFlag: "-4",
+			host:       cfg.ipv4Host,
+			port:       cfg.bedrockIPv4Port,
+		},
+		{
+			label:      "bedrock-ipv6",
+			editionArg: "--bedrock",
+			familyFlag: "-6",
+			host:       cfg.ipv6Host,
+			port:       cfg.bedrockIPv6Port,
+		},
+	}
+}
+
 func main() {
-	cfg := config{}
+	cfg := config{
+		containerName: fmt.Sprintf("minecraft-ping-release-integration-%d", os.Getpid()),
+	}
 
 	flag.StringVar(&cfg.backend, "backend", "binary", "Integration backend: binary or container")
 	flag.StringVar(&cfg.archiveGlob, "binary-archive-glob", "", "Glob that resolves to a release archive containing the binary to execute")
 	flag.StringVar(&cfg.binaryName, "binary-name", "", "Binary name inside the release archive")
 	flag.StringVar(&cfg.binaryPath, "binary", "", "Path to an already extracted binary to execute")
 	flag.StringVar(&cfg.containerCLI, "container-cli", "docker", "Container CLI used to run the Minecraft container")
-	flag.StringVar(&cfg.containerName, "container-name", "minecraft-ping-release-integration", "Container name used for the integration target")
+	flag.StringVar(&cfg.containerName, "container-name", cfg.containerName, "Container name used for the integration target")
 	flag.StringVar(&cfg.imageArchive, "image-archive", "", "Optional path to a compressed docker/podman image archive (.tar.gz)")
 	flag.StringVar(&cfg.imageTag, "image-tag", "minecraft-staging-image:ci", "Tag of the staging image to run after it is loaded")
 	flag.StringVar(&cfg.ipv4Host, "ipv4-host", "127.0.0.1", "IPv4 hostname used by the released binary")
-	flag.IntVar(&cfg.ipv4Port, "ipv4-port", 25565, "IPv4 host port used by the released binary")
 	flag.StringVar(&cfg.ipv6Host, "ipv6-host", "::1", "IPv6 hostname used by the released binary")
-	flag.IntVar(&cfg.ipv6Port, "ipv6-port", 25566, "IPv6 host port used by the released binary")
+	flag.IntVar(&cfg.javaIPv4Port, "java-ipv4-port", 45565, "Java IPv4 host port used by the released binary")
+	flag.IntVar(&cfg.javaIPv6Port, "java-ipv6-port", 45566, "Java IPv6 host port used by the released binary")
+	flag.IntVar(&cfg.bedrockIPv4Port, "bedrock-ipv4-port", 49132, "Bedrock IPv4 host port used by the released binary")
+	flag.IntVar(&cfg.bedrockIPv6Port, "bedrock-ipv6-port", 49133, "Bedrock IPv6 host port used by the released binary")
 	flag.DurationVar(&cfg.probeTimeout, "probe-timeout", 12*time.Second, "Timeout passed through to the ping binary")
 	flag.StringVar(&cfg.serverBinary, "server-binary", "", "Path to the staging backend binary when -backend=binary")
 	flag.Parse()
@@ -117,16 +164,16 @@ func run(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	ipv4Result, err := runProbe(ctx, binaryPath, cfg.ipv4Host, cfg.ipv4Port, cfg.probeTimeout, "-4")
-	if err != nil {
-		return fmt.Errorf("ipv4 probe failed: %w", err)
-	}
-	ipv6Result, err := runProbe(ctx, binaryPath, cfg.ipv6Host, cfg.ipv6Port, cfg.probeTimeout, "-6")
-	if err != nil {
-		return fmt.Errorf("ipv6 probe failed: %w", err)
+	results := make([]string, 0, len(probeSpecs(cfg)))
+	for _, spec := range probeSpecs(cfg) {
+		result, err := runProbe(ctx, binaryPath, cfg.probeTimeout, spec)
+		if err != nil {
+			return fmt.Errorf("%s probe failed: %w", spec.label, err)
+		}
+		results = append(results, fmt.Sprintf("%s_latency_ms=%d", spec.label, result.LatencyMS))
 	}
 
-	log.Printf("release integration succeeded: ipv4_latency_ms=%d ipv6_latency_ms=%d", ipv4Result.LatencyMS, ipv6Result.LatencyMS)
+	log.Printf("release integration succeeded: %s", strings.Join(results, " "))
 	return nil
 }
 
@@ -148,8 +195,10 @@ func startBinaryBackend(ctx context.Context, cfg config, cleanup *[]func()) erro
 	cmd := exec.CommandContext(
 		ctx,
 		cfg.serverBinary,
-		"-listen4", net.JoinHostPort(cfg.ipv4Host, fmt.Sprint(cfg.ipv4Port)),
-		"-listen6", net.JoinHostPort(cfg.ipv6Host, fmt.Sprint(cfg.ipv6Port)),
+		"-listen4", net.JoinHostPort(cfg.ipv4Host, fmt.Sprint(cfg.javaIPv4Port)),
+		"-listen6", net.JoinHostPort(cfg.ipv6Host, fmt.Sprint(cfg.javaIPv6Port)),
+		"-bedrock-listen4", net.JoinHostPort(cfg.ipv4Host, fmt.Sprint(cfg.bedrockIPv4Port)),
+		"-bedrock-listen6", net.JoinHostPort(cfg.ipv6Host, fmt.Sprint(cfg.bedrockIPv6Port)),
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -172,10 +221,16 @@ func startBinaryBackend(ctx context.Context, cfg config, cleanup *[]func()) erro
 		}
 	})
 
-	if err := waitForTCP(ctx, "tcp4", net.JoinHostPort(cfg.ipv4Host, fmt.Sprint(cfg.ipv4Port))); err != nil {
+	if err := waitForJava(ctx, "tcp4", cfg.ipv4Host, cfg.javaIPv4Port); err != nil {
 		return err
 	}
-	if err := waitForTCP(ctx, "tcp6", net.JoinHostPort(cfg.ipv6Host, fmt.Sprint(cfg.ipv6Port))); err != nil {
+	if err := waitForJava(ctx, "tcp6", cfg.ipv6Host, cfg.javaIPv6Port); err != nil {
+		return err
+	}
+	if err := waitForBedrock(ctx, "udp4", cfg.ipv4Host, cfg.bedrockIPv4Port); err != nil {
+		return err
+	}
+	if err := waitForBedrock(ctx, "udp6", cfg.ipv6Host, cfg.bedrockIPv6Port); err != nil {
 		return err
 	}
 	return nil
@@ -196,16 +251,28 @@ func startContainerBackend(ctx context.Context, cfg config, cleanup *[]func()) e
 		return err
 	}
 
-	relay, err := newIPv6Relay(cfg.ipv6Host, cfg.ipv6Port, cfg.ipv4Host, cfg.ipv4Port)
+	relay, err := newIPv6Relay(cfg.ipv6Host, cfg.javaIPv6Port, cfg.ipv4Host, cfg.javaIPv4Port)
 	if err != nil {
 		return err
 	}
 	*cleanup = append(*cleanup, relay.close)
 
-	if err := waitForTCP(ctx, "tcp4", net.JoinHostPort(cfg.ipv4Host, fmt.Sprint(cfg.ipv4Port))); err != nil {
+	bedrockRelay, err := newUDPIPv6Relay(cfg.ipv6Host, cfg.bedrockIPv6Port, cfg.ipv4Host, cfg.bedrockIPv4Port)
+	if err != nil {
 		return err
 	}
-	if err := waitForTCP(ctx, "tcp6", net.JoinHostPort(cfg.ipv6Host, fmt.Sprint(cfg.ipv6Port))); err != nil {
+	*cleanup = append(*cleanup, bedrockRelay.close)
+
+	if err := waitForJava(ctx, "tcp4", cfg.ipv4Host, cfg.javaIPv4Port); err != nil {
+		return err
+	}
+	if err := waitForJava(ctx, "tcp6", cfg.ipv6Host, cfg.javaIPv6Port); err != nil {
+		return err
+	}
+	if err := waitForBedrock(ctx, "udp4", cfg.ipv4Host, cfg.bedrockIPv4Port); err != nil {
+		return err
+	}
+	if err := waitForBedrock(ctx, "udp6", cfg.ipv6Host, cfg.bedrockIPv6Port); err != nil {
 		return err
 	}
 	return nil
@@ -388,17 +455,29 @@ func loadImage(ctx context.Context, containerCLI, archivePath string) error {
 func removeContainer(ctx context.Context, containerCLI, containerName string) error {
 	// #nosec G204 -- container CLI and name are controlled by the integration harness configuration.
 	cmd := exec.CommandContext(ctx, containerCLI, "rm", "-f", containerName)
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return nil
+			message := strings.TrimSpace(string(output))
+			if isContainerNotFoundError(message) {
+				return nil
+			}
+			return fmt.Errorf("%s rm -f %s: %w: %s", containerCLI, containerName, err, message)
 		}
 		var pathErr *exec.Error
 		if errors.As(err, &pathErr) {
 			return err
 		}
+		return err
 	}
 	return nil
+}
+
+func isContainerNotFoundError(message string) bool {
+	lower := strings.ToLower(message)
+	return strings.Contains(lower, "no such container") ||
+		strings.Contains(lower, "no container with name or id")
 }
 
 func startContainer(ctx context.Context, cfg config) error {
@@ -411,7 +490,8 @@ func startContainer(ctx context.Context, cfg config) error {
 		"run",
 		"-d",
 		"--name", cfg.containerName,
-		"-p", fmt.Sprintf("127.0.0.1:%d:25565", cfg.ipv4Port),
+		"-p", fmt.Sprintf("127.0.0.1:%d:25565/tcp", cfg.javaIPv4Port),
+		"-p", fmt.Sprintf("127.0.0.1:%d:19132/udp", cfg.bedrockIPv4Port),
 		cfg.imageTag,
 	)
 	cmd.Stdout = os.Stdout
@@ -422,15 +502,13 @@ func startContainer(ctx context.Context, cfg config) error {
 	return nil
 }
 
-func waitForTCP(ctx context.Context, network, address string) error {
-	log.Printf("waiting for %s listener on %s", network, address)
+func waitForJava(ctx context.Context, network, host string, port int) error {
+	address := net.JoinHostPort(host, fmt.Sprint(port))
+	log.Printf("waiting for java %s listener on %s", network, address)
 
 	deadline := time.Now().Add(2 * time.Minute)
 	for time.Now().Before(deadline) {
-		dialer := net.Dialer{Timeout: 2 * time.Second}
-		conn, err := dialer.DialContext(ctx, network, address)
-		if err == nil {
-			_ = conn.Close()
+		if err := stagingserver.Probe(network, host, port, 2*time.Second); err == nil {
 			return nil
 		}
 		select {
@@ -439,24 +517,44 @@ func waitForTCP(ctx context.Context, network, address string) error {
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
-	return fmt.Errorf("timed out waiting for %s listener on %s", network, address)
+	return fmt.Errorf("timed out waiting for java %s listener on %s", network, address)
 }
 
-func runProbe(ctx context.Context, binaryPath, host string, port int, timeout time.Duration, familyFlag string) (pingResult, error) {
-	log.Printf("running %s probe with %s against %s:%d", familyFlag, binaryPath, host, port)
+func waitForBedrock(ctx context.Context, network, host string, port int) error {
+	address := net.JoinHostPort(host, fmt.Sprint(port))
+	log.Printf("waiting for bedrock %s listener on %s", network, address)
+
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		if err := stagingserver.ProbeBedrock(network, host, port, 2*time.Second); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	return fmt.Errorf("timed out waiting for bedrock %s listener on %s", network, address)
+}
+
+func runProbe(ctx context.Context, binaryPath string, timeout time.Duration, spec probeSpec) (pingResult, error) {
+	log.Printf("running %s probe with %s against %s:%d", spec.label, binaryPath, spec.host, spec.port)
 
 	commandCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
-	// #nosec G204 -- extracted binary path is selected by the harness from local release artifacts under test.
-	cmd := exec.CommandContext(
-		commandCtx,
-		binaryPath,
+	args := []string{
 		"-j",
 		"-W", strconv.FormatFloat(timeout.Seconds(), 'f', -1, 64),
-		familyFlag,
-		net.JoinHostPort(host, fmt.Sprint(port)),
-	)
+	}
+	if spec.editionArg != "" {
+		args = append(args, spec.editionArg)
+	}
+	args = append(args, spec.familyFlag, net.JoinHostPort(spec.host, fmt.Sprint(spec.port)))
+
+	// #nosec G204 -- extracted binary path is selected by the harness from local release artifacts under test.
+	cmd := exec.CommandContext(commandCtx, binaryPath, args...)
 
 	stdout, err := cmd.Output()
 	if err != nil {
@@ -552,6 +650,95 @@ func (r *ipv6Relay) close() {
 		return
 	}
 	_ = r.listener.Close()
+	r.wg.Wait()
+}
+
+type udpIPv6Relay struct {
+	conn       net.PacketConn
+	targetAddr *net.UDPAddr
+	wg         sync.WaitGroup
+}
+
+func newUDPIPv6Relay(listenHost string, listenPort int, targetHost string, targetPort int) (*udpIPv6Relay, error) {
+	address := net.JoinHostPort(listenHost, fmt.Sprint(listenPort))
+	listenConfig := net.ListenConfig{
+		Control: func(network, address string, rawConn syscall.RawConn) error {
+			var controlErr error
+			if network != "udp6" {
+				return nil
+			}
+			if err := rawConn.Control(func(fd uintptr) {
+				controlErr = setIPv6Only(fd)
+			}); err != nil {
+				return err
+			}
+			return controlErr
+		},
+	}
+
+	conn, err := listenConfig.ListenPacket(context.Background(), "udp6", address)
+	if err != nil {
+		return nil, fmt.Errorf("listen on udp ipv6 relay %s: %w", address, err)
+	}
+
+	targetAddr, err := net.ResolveUDPAddr("udp4", net.JoinHostPort(targetHost, fmt.Sprint(targetPort)))
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("resolve udp relay target %s:%d: %w", targetHost, targetPort, err)
+	}
+
+	relay := &udpIPv6Relay{
+		conn:       conn,
+		targetAddr: targetAddr,
+	}
+	relay.wg.Add(1)
+	go relay.serve()
+	return relay, nil
+}
+
+func (r *udpIPv6Relay) serve() {
+	defer r.wg.Done()
+
+	var buf [2048]byte
+	for {
+		n, clientAddr, err := r.conn.ReadFrom(buf[:])
+		if err != nil {
+			return
+		}
+		if err := r.forwardPacket(buf[:n], clientAddr); err != nil {
+			log.Printf("udp ipv6 relay failed: %v", err)
+		}
+	}
+}
+
+func (r *udpIPv6Relay) forwardPacket(payload []byte, clientAddr net.Addr) error {
+	upstream, err := net.DialUDP("udp4", nil, r.targetAddr)
+	if err != nil {
+		return err
+	}
+	defer upstream.Close()
+
+	if err := upstream.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return err
+	}
+	if _, err := upstream.Write(payload); err != nil {
+		return err
+	}
+
+	var reply [2048]byte
+	n, _, err := upstream.ReadFromUDP(reply[:])
+	if err != nil {
+		return err
+	}
+	_, err = r.conn.WriteTo(reply[:n], clientAddr)
+	return err
+}
+
+func (r *udpIPv6Relay) close() {
+	if r == nil {
+		return
+	}
+	_ = r.conn.Close()
 	r.wg.Wait()
 }
 

@@ -16,6 +16,7 @@ FROM scratch
 
 COPY --from=build /out/minecraft-staging-server /minecraft-staging-server
 
-EXPOSE 25565
+EXPOSE 25565/tcp
+EXPOSE 19132/udp
 
-ENTRYPOINT ["/minecraft-staging-server", "-listen4", ":25565", "-listen6", ""]
+ENTRYPOINT ["/minecraft-staging-server", "-listen4", ":25565", "-listen6", "", "-bedrock-listen4", ":19132", "-bedrock-listen6", ""]

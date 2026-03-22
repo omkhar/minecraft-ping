@@ -35,7 +35,10 @@ var errVarIntTooLong = errors.New("varint is too long")
 type Config struct {
 	ListenIPv4         string
 	ListenIPv6         string
+	BedrockListenIPv4  string
+	BedrockListenIPv6  string
 	StatusJSON         string
+	BedrockStatus      string
 	ConnectionDeadline time.Duration
 }
 
@@ -46,14 +49,19 @@ func DefaultStatusJSON() string {
 func Serve(ctx context.Context, cfg Config) error {
 	cfg = cfg.withDefaults()
 
-	if err := validateStatusJSON(cfg.StatusJSON); err != nil {
-		return err
+	javaEnabled := cfg.ListenIPv4 != "" || cfg.ListenIPv6 != ""
+	bedrockEnabled := cfg.BedrockListenIPv4 != "" || cfg.BedrockListenIPv6 != ""
+	if javaEnabled {
+		if err := validateStatusJSON(cfg.StatusJSON); err != nil {
+			return err
+		}
 	}
-	if cfg.ListenIPv4 == "" && cfg.ListenIPv6 == "" {
+	if !javaEnabled && !bedrockEnabled {
 		return errors.New("at least one listen address is required")
 	}
 
 	listeners := make([]net.Listener, 0, 2)
+	packetListeners := make([]net.PacketConn, 0, 2)
 	if cfg.ListenIPv4 != "" {
 		listener, err := net.Listen("tcp4", cfg.ListenIPv4)
 		if err != nil {
@@ -69,9 +77,37 @@ func Serve(ctx context.Context, cfg Config) error {
 		}
 		listeners = append(listeners, listener)
 	}
+	if cfg.BedrockListenIPv4 != "" {
+		packetListener, err := net.ListenPacket("udp4", cfg.BedrockListenIPv4)
+		if err != nil {
+			closeListeners(listeners)
+			return fmt.Errorf("listen on %s: %w", cfg.BedrockListenIPv4, err)
+		}
+		packetListeners = append(packetListeners, packetListener)
+	}
+	if cfg.BedrockListenIPv6 != "" {
+		packetListener, err := net.ListenPacket("udp6", cfg.BedrockListenIPv6)
+		if err != nil {
+			closeListeners(listeners)
+			closePacketListeners(packetListeners)
+			return fmt.Errorf("listen on %s: %w", cfg.BedrockListenIPv6, err)
+		}
+		packetListeners = append(packetListeners, packetListener)
+	}
+	if bedrockEnabled {
+		if cfg.BedrockStatus == "" {
+			cfg.BedrockStatus = defaultBedrockStatusForListeners(packetListeners)
+		}
+		if err := validateBedrockStatus(cfg.BedrockStatus); err != nil {
+			closeListeners(listeners)
+			closePacketListeners(packetListeners)
+			return err
+		}
+	}
 	defer closeListeners(listeners)
+	defer closePacketListeners(packetListeners)
 
-	errCh := make(chan error, len(listeners))
+	errCh := make(chan error, len(listeners)+len(packetListeners))
 	var acceptWG sync.WaitGroup
 	for _, listener := range listeners {
 		acceptWG.Add(1)
@@ -79,6 +115,13 @@ func Serve(ctx context.Context, cfg Config) error {
 			defer acceptWG.Done()
 			serveListener(ctx, listener, cfg.StatusJSON, cfg.ConnectionDeadline, errCh)
 		}(listener)
+	}
+	for _, packetListener := range packetListeners {
+		acceptWG.Add(1)
+		go func(packetListener net.PacketConn) {
+			defer acceptWG.Done()
+			serveBedrockListener(ctx, packetListener, cfg.BedrockStatus, errCh)
+		}(packetListener)
 	}
 
 	select {
@@ -90,6 +133,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	}
 
 	closeListeners(listeners)
+	closePacketListeners(packetListeners)
 	acceptWG.Wait()
 	return nil
 }
@@ -115,6 +159,12 @@ func validateStatusJSON(statusJSON string) error {
 }
 
 func closeListeners(listeners []net.Listener) {
+	for _, listener := range listeners {
+		_ = listener.Close()
+	}
+}
+
+func closePacketListeners(listeners []net.PacketConn) {
 	for _, listener := range listeners {
 		_ = listener.Close()
 	}
