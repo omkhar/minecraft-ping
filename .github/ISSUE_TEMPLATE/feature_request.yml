@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose an improvement to the CLI, protocol support, or contributor workflow
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the user problem first, then the proposed change.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What is missing or painful today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+

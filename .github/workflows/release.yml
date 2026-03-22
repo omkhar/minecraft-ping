@@ -28,6 +28,24 @@ jobs:
       contents: write # Create the GitHub release and upload release assets for the pushed tag.
       id-token: write # Mint the OIDC identity token used for keyless Cosign signing.
     steps:
+      - name: Determine GitHub attestation support
+        id: attestation_support
+        shell: bash
+        env:
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [[ "${REPOSITORY_PRIVATE}" == "true" && "${OWNER_TYPE}" == "User" ]]; then
+            echo "supported=false" >> "${GITHUB_OUTPUT}"
+            {
+              echo "GitHub artifact attestations are unavailable for user-owned private repositories."
+              echo "The release will publish signed artifacts and signed SBOM assets only."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          echo "supported=true" >> "${GITHUB_OUTPUT}"
+
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -125,11 +143,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate GitHub build provenance attestations
+        if: steps.attestation_support.outputs.supported == 'true'
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-checksums: dist/checksums.txt
 
       - name: Verify GitHub build provenance attestations
+        if: steps.attestation_support.outputs.supported == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -152,6 +172,7 @@ jobs:
           done
 
       - name: Download GitHub provenance bundles
+        if: steps.attestation_support.outputs.supported == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -176,6 +197,7 @@ jobs:
           done
 
       - name: Upload GitHub provenance bundle assets
+        if: steps.attestation_support.outputs.supported == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
