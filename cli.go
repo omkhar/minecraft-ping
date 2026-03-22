@@ -169,7 +169,7 @@ func consumeLongFlag(raw rawCLIConfig, arg string, args []string, index *int) (r
 			if *index+1 >= len(args) {
 				return raw, false
 			}
-			*index = *index + 1
+			*index++
 			value = args[*index]
 		}
 		raw.edition = value
