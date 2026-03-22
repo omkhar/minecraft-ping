@@ -250,19 +250,6 @@ func freePacketPort(t *testing.T, network, address string) int {
 	}
 }
 
-func waitForProbe(t *testing.T, network, host string, port int) {
-	t.Helper()
-
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if err := Probe(network, host, port, 2*time.Second); err == nil {
-			return
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	t.Fatalf("probe to %s %s:%d did not succeed", network, host, port)
-}
-
 func waitForBedrockProbe(t *testing.T, network, host string, port int) {
 	t.Helper()
 
