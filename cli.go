@@ -17,10 +17,11 @@ type pingResult struct {
 }
 
 type cliConfig struct {
-	Endpoint endpoint
-	Timeout  time.Duration
-	Format   string
-	Options  pingOptions
+	Endpoint    endpoint
+	Timeout     time.Duration
+	Format      string
+	Options     pingOptions
+	ShowVersion bool
 }
 
 type cliParseError struct {
@@ -47,6 +48,7 @@ type cliFlagValues struct {
 	forceIPv4    *bool
 	forceIPv6    *bool
 	format       *string
+	showVersion  *bool
 }
 
 func newCLIFlagSet(output io.Writer) (*flag.FlagSet, cliFlagValues) {
@@ -65,6 +67,7 @@ func newCLIFlagSet(output io.Writer) (*flag.FlagSet, cliFlagValues) {
 		forceIPv4:    fs.Bool("4", false, "Force IPv4"),
 		forceIPv6:    fs.Bool("6", false, "Force IPv6"),
 		format:       fs.String("format", "text", "Output format: text or json"),
+		showVersion:  fs.Bool("version", false, "Print version and exit"),
 	}
 
 	return fs, values
@@ -89,6 +92,9 @@ func parseCLIConfig(args []string) (cliConfig, error) {
 			message:    message,
 			writeUsage: errors.Is(err, flag.ErrHelp),
 		}
+	}
+	if *values.showVersion {
+		return cliConfig{ShowVersion: true}, nil
 	}
 
 	outputFormat, err := normalizeOutputFormat(*values.format)
@@ -147,6 +153,10 @@ func renderResult(format string, target endpoint, latency int) string {
 func runCLI(args []string, stdout io.Writer, ping pingFunc) error {
 	config, err := parseCLIConfig(args)
 	if err != nil {
+		return err
+	}
+	if config.ShowVersion {
+		_, err := fmt.Fprintln(stdout, versionLine())
 		return err
 	}
 

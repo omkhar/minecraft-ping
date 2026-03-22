@@ -140,6 +140,29 @@ func TestRunCLIRejectsConflictingAddressFamilyFlagsBeforePing(t *testing.T) {
 	}
 }
 
+func TestRunCLIVersionWritesVersionWithoutCallingPing(t *testing.T) {
+	var output bytes.Buffer
+	called := false
+
+	err := runCLI(
+		[]string{"-version"},
+		&output,
+		func(endpoint, time.Duration, pingOptions) (int, error) {
+			called = true
+			return 1, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("runCLI() returned error: %v", err)
+	}
+	if called {
+		t.Fatal("runCLI() called ping function for version")
+	}
+	if got := output.String(); got != "minecraft-ping dev\n" {
+		t.Fatalf("runCLI() output = %q, want %q", got, "minecraft-ping dev\n")
+	}
+}
+
 func TestRunCLIHelpReturnsFlagErrHelpWithoutCallingPing(t *testing.T) {
 	var output bytes.Buffer
 	called := false
@@ -284,6 +307,19 @@ func TestParseCLIConfig(t *testing.T) {
 	if config.Options.addressFamily != addressFamily6 {
 		t.Fatalf("addressFamily = %v, want IPv6", config.Options.addressFamily)
 	}
+	if config.ShowVersion {
+		t.Fatal("ShowVersion = true, want false")
+	}
+}
+
+func TestParseCLIConfigVersion(t *testing.T) {
+	config, err := parseCLIConfig([]string{"-version"})
+	if err != nil {
+		t.Fatalf("parseCLIConfig() error: %v", err)
+	}
+	if !config.ShowVersion {
+		t.Fatal("ShowVersion = false, want true")
+	}
 }
 
 func TestParseAddressFamily(t *testing.T) {
@@ -390,10 +426,39 @@ func TestRunHelpWritesUsageToStdout(t *testing.T) {
 		"Force IPv6",
 		"Minecraft server to ping",
 		"Output format: text or json",
+		"Print version and exit",
 	} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("run() help output missing %q in %q", want, help)
 		}
+	}
+}
+
+func TestRunVersionWritesVersionToStdout(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	called := false
+
+	rc := run(
+		[]string{"minecraft-ping", "-version"},
+		&stdout,
+		&stderr,
+		func(endpoint, time.Duration, pingOptions) (int, error) {
+			called = true
+			return 0, nil
+		},
+	)
+	if rc != 0 {
+		t.Fatalf("run() rc = %d, want 0", rc)
+	}
+	if called {
+		t.Fatal("run() called ping function for version")
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("run() wrote stderr for version: %q", stderr.String())
+	}
+	if got := stdout.String(); got != "minecraft-ping dev\n" {
+		t.Fatalf("run() stdout = %q, want %q", got, "minecraft-ping dev\n")
 	}
 }
 

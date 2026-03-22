@@ -10,6 +10,8 @@ builds:
   - id: minecraft-ping
     main: .
     binary: minecraft-ping
+    ldflags:
+      - -X main.cliVersion={{ .Version }}
     env:
       - CGO_ENABLED=0
     goos:

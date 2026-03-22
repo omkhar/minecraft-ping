@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-Go CLI tool that measures latency to a Minecraft Java Edition server (protocol version 109+) using the native handshake → status → ping/pong sequence. Supports SRV record lookup and private address filtering.
+Go CLI tool that measures latency to a Minecraft Java Edition server using the native handshake -> status -> ping/pong sequence. It supports SRV lookup, explicit IPv4 or IPv6 forcing, and private-address filtering.
 
 ## Commands
 
@@ -12,29 +12,71 @@ Go CLI tool that measures latency to a Minecraft Java Edition server (protocol v
 # Build
 go build -v ./...
 
+# Show flags
+go run . -help
+
+# Show embedded build version
+go run . -version
+
 # Run
-./minecraft-ping -server mc.example.com [-port 25565] [-timeout 5s] [-allow-private] [-format text|json]
+./minecraft-ping -server mc.example.com \
+  [-port 25565] \
+  [-timeout 5s] \
+  [-allow-private] \
+  [-format text|json] \
+  [-4|-6]
 
 # Unit tests
 go test -v ./...
 
-# Fuzz tests (run locally; CI runs each for 30s)
+# Fuzz tests (run locally; CI runs them from the unit-test workflow)
 go test ./... -run=^$ -fuzz=FuzzReadVarIntFromBytes -fuzztime=30s
 go test ./... -run=^$ -fuzz=FuzzReadStringFromBytes -fuzztime=30s
 go test ./... -run=^$ -fuzz=FuzzReadPacket -fuzztime=30s
+
+# Container-backed staging smoke
+scripts/staging_smoke.sh
 ```
 
 ## Architecture
 
-- `minecraft-ping.go` — CLI entry point; flags: `-server`, `-port`, `-timeout`, `-allow-private`, `-format` (`text` default or `json`); JSON output: `{"server":"...","latency_ms":N}`
-- `ping_client.go` — core protocol logic (~500 lines): TCP connection, SRV lookup, VarInt encode/decode, packet serialization/deserialization, private address CIDR filtering
-- `minecraft-ping_test.go` — unit tests with mock TCP server
-- `ping_fuzz_test.go` — three fuzz targets for binary parser robustness
+- `minecraft-ping.go` — program entry point
+- `cli.go` — CLI parsing, help/version handling, output rendering, and process exit behavior
+- `version.go` — build-time version string used by `-version`
+- `client.go` — request validation, SRV handling, address resolution, dialing, and ping execution
+- `endpoint.go` — endpoint normalization plus address-family and host validation
+- `address.go` — non-public address detection and family-aware dial candidate ordering
+- `protocol.go` — packet serialization and parsing for handshake, status, and ping/pong
+- `minecraft-ping_test.go` — end-to-end protocol, resolution, and dialing tests with fakes
+- `minecraft_ping_cli_test.go` — CLI behavior tests for help, version, output, and exit paths
+- `ping_fuzz_test.go` — fuzz targets for parser robustness
 
-**CI** (`.github/workflows/go.yml`): build → unit tests → `govulncheck` → `gosec` → fuzz (15 min timeout).
+## CLI Behavior
 
-## Code Review Notes (Feb 2026)
+- Default output is human-readable text: `Ping time is N ms`
+- `-format=json` emits `{"server":"...","latency_ms":N}`
+- `-4` forces IPv4 resolution and dialing
+- `-6` forces IPv6 resolution and dialing
+- `-version` prints the embedded build version and exits
+- Private and loopback targets are rejected unless `-allow-private` is set
 
-- **Maintainability**: Magic packet IDs (`0x00`, `0x01`) should be named constants — e.g. `packetIDHandshake`, `packetIDPing`, `nextStateStatus`
-- **Maintainability**: No debug logging — consider a `-debug` flag for protocol-level tracing
-- ~~**Idiomatic**: Output is human-only. Fixed: text output now includes `ms` unit; `-format=json` flag added for monitoring integration.~~
+## CI
+
+`CI` (`.github/workflows/go.yml`) runs:
+
+- `govulncheck`
+- `gosec`
+- `go build`
+- `go test`
+- a container-backed dual-stack smoke test via `scripts/staging_smoke.sh`
+- diff-scoped mutation testing on pull requests
+
+The staging smoke runs one IPv4 ping (`-4`) and one IPv6 ping (`-6`) against the same Minecraft container. The IPv6 path is exposed through a local `::1` relay to avoid Docker runtime differences in direct IPv6 loopback publishing.
+
+`Release` (`.github/workflows/release.yml`) uses GoReleaser to build release archives, inject the release version for `-version`, publish GitHub release assets, and sign them with keyless `cosign`.
+
+## Notes
+
+- Packet IDs are named constants in `protocol.go`; preserve that style.
+- Keep the transport path simple: validation -> SRV resolution -> family-aware resolution -> dial -> protocol exchange.
+- Prefer tests that exercise real CLI behavior and fake network boundaries over broad mocking of internal implementation details.
