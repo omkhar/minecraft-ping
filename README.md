@@ -23,6 +23,7 @@ go build -o minecraft-ping .
 
 Signed release archives and Linux packages are published from tagged releases.
 For public consumers, the canonical install path will be the signed release artifacts published on [GitHub Releases](https://github.com/omkhar/minecraft-ping/releases).
+Linux packages install the `minecraft-ping(1)` man page, and release archives ship the same source at `man/minecraft-ping.1`.
 
 ## Usage
 
@@ -123,6 +124,7 @@ Release artifacts are built for:
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Man Page Source](man/minecraft-ping.1)
 
 ## Development
 
@@ -150,7 +152,7 @@ CONTAINER_CLI="${CONTAINER_CLI:-docker}"
 
 Then run the integration script. Set `CONTAINER_CLI=podman` if you are using Podman, or point the script at an existing image with `MINECRAFT_STAGING_IMAGE`.
 
-For packaging changes, also reproduce the Linux package smoke path described in [docs/development.md](docs/development.md) when your environment supports it.
+For packaging changes, also run `scripts/release_archive_smoke.sh dist` after a snapshot build and reproduce the Linux package smoke path described in [docs/development.md](docs/development.md) when your environment supports it.
 
 ## Release Artifacts
 

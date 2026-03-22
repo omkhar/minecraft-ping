@@ -3,6 +3,7 @@ set -euo pipefail
 
 DIST_DIR="${1:-dist}"
 TARGET_ARCH="${2:-}"
+CONTAINER_CLI="${CONTAINER_CLI:-docker}"
 
 if [[ -z "$TARGET_ARCH" ]]; then
   echo "usage: $0 <dist-dir> <amd64|arm64>" >&2
@@ -57,36 +58,42 @@ run_container_smoke() {
   local label="$1"
   local image="$2"
   local command="$3"
+  local container_id
 
   echo "smoke: ${label} (${TARGET_ARCH})"
-  docker run --rm \
-    --platform "$docker_platform" \
-    -v "$(cd "$DIST_DIR" && pwd):/dist:ro" \
-    "$image" \
-    sh -ceu "$command"
+  container_id="$("$CONTAINER_CLI" create --platform "$docker_platform" "$image" sh -ceu "$command")"
+  "$CONTAINER_CLI" cp "$(cd "$DIST_DIR" && pwd)/." "${container_id}:/dist"
+  if ! "$CONTAINER_CLI" start -a "$container_id"; then
+    "$CONTAINER_CLI" rm -f "$container_id" >/dev/null 2>&1 || true
+    return 1
+  fi
+  "$CONTAINER_CLI" rm -f "$container_id" >/dev/null 2>&1 || true
 }
+
+manpage_check='test -f /usr/share/man/man1/minecraft-ping.1 || test -f /usr/share/man/man1/minecraft-ping.1.gz'
 
 run_container_smoke \
   "debian" \
-  "debian:12-slim" \
+  "debian:12" \
   "export DEBIAN_FRONTEND=noninteractive
-   apt-get update
-   apt-get install -y ca-certificates
-   apt-get install -y /dist/$deb_pkg
+   dpkg -i /dist/$deb_pkg
+   ${manpage_check}
    /usr/bin/minecraft-ping -V
    /usr/bin/minecraft-ping -h >/dev/null"
 
 run_container_smoke \
   "fedora" \
   "fedora:42" \
-  "dnf install -y --setopt=localpkg_gpgcheck=0 /dist/$rpm_pkg
+  "rpm -i --nosignature /dist/$rpm_pkg
+   ${manpage_check}
    /usr/bin/minecraft-ping -V
    /usr/bin/minecraft-ping -h >/dev/null"
 
 run_container_smoke \
   "alpine" \
   "alpine:3.21" \
-  "apk add --no-cache --allow-untrusted /dist/$apk_pkg
+  "apk add --no-cache --no-network --allow-untrusted --repositories-file /dev/null --force-non-repository /dist/$apk_pkg
+   ${manpage_check}
    /usr/bin/minecraft-ping -V
    /usr/bin/minecraft-ping -h >/dev/null"
 

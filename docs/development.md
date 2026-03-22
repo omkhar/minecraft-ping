@@ -89,6 +89,12 @@ Build snapshot release artifacts:
 goreleaser release --snapshot --clean --skip=sign
 ```
 
+Validate the generated release archives:
+
+```bash
+scripts/release_archive_smoke.sh dist
+```
+
 Then run the smoke test for a Linux architecture your container runtime can execute:
 
 ```bash
@@ -102,6 +108,7 @@ scripts/release_linux_package_smoke.sh dist arm64
 ```
 
 This path validates installability and basic execution of the generated `.deb`, `.rpm`, and `.apk` packages.
+It also verifies that the packaged `minecraft-ping(1)` man page is installed.
 
 ## CI Coverage
 
