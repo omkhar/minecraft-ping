@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      attestations: write # Publish GitHub artifact attestations for release assets and SBOMs.
       artifact-metadata: write # Upload build provenance attestations for published release assets.
       checks: read # Query Main Verify check runs on the tagged main commit before publishing.
       contents: write # Create the GitHub release and upload release assets for the pushed tag.
