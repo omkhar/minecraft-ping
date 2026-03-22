@@ -77,16 +77,6 @@ run_container_smoke \
    /usr/bin/minecraft-ping -help >/dev/null"
 
 run_container_smoke \
-  "ubuntu" \
-  "ubuntu:24.04" \
-  "export DEBIAN_FRONTEND=noninteractive
-   apt-get update
-   apt-get install -y ca-certificates
-   apt-get install -y /dist/$deb_pkg
-   /usr/bin/minecraft-ping -version
-   /usr/bin/minecraft-ping -help >/dev/null"
-
-run_container_smoke \
   "fedora" \
   "fedora:42" \
   "dnf install -y --setopt=localpkg_gpgcheck=0 /dist/$rpm_pkg

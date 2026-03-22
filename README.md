@@ -4,17 +4,12 @@
 
 Current GitHub Actions workflow status:
 
-- [CI](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml): [![CI](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml)
-- [Dependabot Updates](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/dependabot-updates): [![Dependabot Updates](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/dependabot-updates/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/dependabot-updates)
-- [Dependency Graph](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/update-graph): [![Dependency Graph](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/update-graph/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dynamic/dependabot/update-graph)
-- [Dependency Review](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml): [![Dependency Review](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependency-review.yml)
-- [Mutation Nightly](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml): [![Mutation Nightly](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/mutation-nightly.yml)
-- [OSV Scanner](https://github.com/omkhar/minecraft-ping/actions/workflows/osv-scanner.yml): [![OSV Scanner](https://github.com/omkhar/minecraft-ping/actions/workflows/osv-scanner.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/osv-scanner.yml)
+- [PR Fast](https://github.com/omkhar/minecraft-ping/actions/workflows/pr-fast.yml): [![PR Fast](https://github.com/omkhar/minecraft-ping/actions/workflows/pr-fast.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/pr-fast.yml)
+- [PR Network](https://github.com/omkhar/minecraft-ping/actions/workflows/pr-network.yml): [![PR Network](https://github.com/omkhar/minecraft-ping/actions/workflows/pr-network.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/pr-network.yml)
+- [Main Verify](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml): [![Main Verify](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/go.yml)
+- [Deep Validation](https://github.com/omkhar/minecraft-ping/actions/workflows/deep-validation.yml): [![Deep Validation](https://github.com/omkhar/minecraft-ping/actions/workflows/deep-validation.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/deep-validation.yml)
 - [PR Auto-Merge](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml): [![PR Auto-Merge](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/dependabot-auto-merge.yml)
 - [Release](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml): [![Release](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/release.yml)
-- [Security Baseline](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml): [![Security Baseline](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/security-baseline.yml)
-- [Semgrep](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml): [![Semgrep](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/semgrep.yml)
-- [zizmor](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml): [![zizmor](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml/badge.svg)](https://github.com/omkhar/minecraft-ping/actions/workflows/zizmor.yml)
 
 ## Overview
 
@@ -93,13 +88,11 @@ Local development builds print `minecraft-ping dev` for `-version`. Tagged relea
 
 ## CI And Security
 
-- `CI`: runs `govulncheck`, `gosec`, `go build`, native `go test` coverage on Linux, macOS, and Windows for `amd64` and `arm64`, a release-snapshot packaging build, Linux package install smoke tests on Debian, Ubuntu, Fedora, and Alpine for `amd64` and `arm64`, and a final dual-stack integration matrix that executes every release binary against the staging Minecraft target with both `-4` and `-6`; it also runs diff-scoped mutation testing on pull requests.
-- `Release`: builds cross-platform archives plus Linux distro packages with GoReleaser, injects the release version used by `-version`, publishes GitHub release assets, and signs all artifacts with keyless `cosign`.
-- `OSV Scanner`: checks dependency advisories against OSV.
-- `Security Baseline`: runs `gitleaks`.
-- `Dependency Review`: enforces PR dependency policy checks.
-- `Mutation Nightly`: runs scheduled mutation testing.
-- `zizmor`: lints GitHub Actions workflow security.
+- `PR Fast`: runs `go mod verify`, `actionlint`, `gofmt`, `goimports`, `go vet`, `staticcheck`, `ineffassign`, `gocritic`, `zizmor`, GitHub dependency review, `govulncheck`, `gosec`, `gitleaks`, Linux `go test -race ./...`, Linux `go test -shuffle=on -count=1 ./...`, and diff-scoped mutation testing for changed Go packages.
+- `PR Network`: runs a Linux dual-stack integration gate on pull requests that touch Go, Docker, workflow, or release-integration paths. It builds the staging Minecraft container, executes the real CLI against it, and requires both `-4` and `-6` to succeed.
+- `Main Verify`: runs the same lint, dependency, security, and Linux test gates on `main`, then runs native `go test ./...` on Linux, macOS, and Windows for `amd64` and `arm64`, a GoReleaser snapshot build, Linux package install smoke tests on Debian, Fedora, and Alpine for `amd64` and `arm64`, and a final dual-stack release-archive integration matrix that executes every shipped binary with both `-4` and `-6`.
+- `Deep Validation`: runs weekly or manually and covers the parser fuzz targets plus the full mutation suite.
+- `Release`: waits for the exact tagged `main` commit to pass `Main Verify`, then builds cross-platform archives plus Linux distro packages with GoReleaser, injects the release version used by `-version`, signs the release artifacts with keyless `cosign`, publishes signed SPDX SBOMs, and uploads GitHub build provenance attestations.
 
 ## Operations
 
@@ -108,15 +101,17 @@ Local development builds print `minecraft-ping dev` for `-version`. Tagged relea
 - Staging image definition: `docker/staging-minecraft.Dockerfile`
 - CI helper: `scripts/ci_wait_for_checks.sh`
 
-The final integration gate uses a small first-party staging backend that speaks the real Minecraft status and ping/pong protocol. Every release archive for Linux, macOS, and Windows on `amd64` and `arm64` is executed natively against that target with both `-4` and `-6`. Linux runners also build the staging container and run the Linux release binaries against it, with the IPv6 probe exposed through a local `::1` relay backed by the same container so the test remains portable even when the Docker runtime does not publish IPv6 loopback ports directly.
+The final integration gate uses a small first-party staging backend that speaks the real Minecraft status and ping/pong protocol. Every release archive for Linux, macOS, and Windows on `amd64` and `arm64` is executed against that target with both `-4` and `-6`. Linux runners use the live staging container, while macOS and Windows runners use the native staging backend because GitHub-hosted runners do not offer the same portable dual-stack container path. `scripts/run_release_integration.sh` is a developer helper for source builds; the release gates validate actual GoReleaser output.
 
 ## Releases
 
-- Tag `vX.Y.Z` on `main` to publish a release.
+- Create an annotated, signed `vX.Y.Z` tag at the current `main` head to publish a release.
 - Release assets include signed archives for `darwin`, `linux`, and `windows` on `amd64` and `arm64`.
 - Linux release assets also include signed `.deb`, `.rpm`, and `.apk` packages for `amd64` and `arm64`.
+- Release assets also include signed SPDX SBOM files for every published archive and package.
 - Every uploaded asset includes a matching `.sigstore.json` bundle.
 - `checksums.txt` is also signed and published.
+- GitHub artifact attestations publish build provenance for the release artifacts and SBOMs.
 
 Example verification:
 
@@ -127,6 +122,8 @@ cosign verify-blob \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   checksums.txt
 ```
+
+For build provenance, verify the GitHub artifact attestations attached to the release workflow run or the corresponding release assets in the repository attestation view.
 
 ## Security Notes
 

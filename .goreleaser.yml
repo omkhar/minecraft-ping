@@ -2,10 +2,6 @@ version: 2
 
 project_name: minecraft-ping
 
-before:
-  hooks:
-    - go test ./...
-
 builds:
   - id: minecraft-ping
     main: .

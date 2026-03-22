@@ -4,7 +4,7 @@ name: PR Auto-Merge
 on:
   workflow_run:
     # zizmor: ignore[dangerous-triggers] This workflow reads PR metadata only and never checks out or executes untrusted code.
-    workflows: ["CI"]
+    workflows: ["PR Fast"]
     types:
       - completed
 
@@ -40,8 +40,8 @@ jobs:
         env:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          read -r head_ref head_owner is_draft mergeable <<EOF
-          $(gh pr view "$PR_NUMBER" --json isDraft,headRefName,headRepositoryOwner,mergeable --jq '[.headRefName, .headRepositoryOwner.login, (.isDraft | tostring), .mergeable] | @tsv')
+          read -r head_owner is_draft mergeable <<EOF
+          $(gh pr view "$PR_NUMBER" --json isDraft,headRepositoryOwner,mergeable --jq '[.headRepositoryOwner.login, (.isDraft | tostring), .mergeable] | @tsv')
           EOF
 
           if [[ "${head_owner}" != "${REPO_OWNER}" || "${is_draft}" == "true" || "${mergeable}" != "MERGEABLE" ]]; then

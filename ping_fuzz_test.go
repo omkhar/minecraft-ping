@@ -85,7 +85,7 @@ func FuzzReadPacket(f *testing.F) {
 			return
 		}
 
-		if len(payload) <= 0 {
+		if len(payload) == 0 {
 			t.Fatalf("payload length must be positive: %d", len(payload))
 		}
 		if len(payload) > maxLength {

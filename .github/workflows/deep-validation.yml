@@ -1,0 +1,66 @@
+name: Deep Validation
+
+on:
+  schedule:
+    - cron: "45 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  GO_MUTESTING_VERSION: v0.0.0-20251226130216-48d0401f00fb
+  GOTOOLCHAIN: auto
+
+jobs:
+  deep-fuzz:
+    name: deep-fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run fuzz targets
+        run: |
+          go test ./... -run=^$ -fuzz=FuzzReadVarIntFromBytes -fuzztime=2m
+          go test ./... -run=^$ -fuzz=FuzzReadStringFromBytes -fuzztime=2m
+          go test ./... -run=^$ -fuzz=FuzzReadPacket -fuzztime=2m
+
+  deep-mutation:
+    name: deep-mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Cache go-mutesting binary
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/go/bin/go-mutesting
+          key: go-mutesting-${{ runner.os }}-${{ env.GO_MUTESTING_VERSION }}
+      - name: Install go-mutesting
+        run: |
+          if [[ ! -x "$(go env GOPATH)/bin/go-mutesting" ]]; then
+            GOTOOLCHAIN=auto go install "github.com/avito-tech/go-mutesting/cmd/go-mutesting@${GO_MUTESTING_VERSION}"
+          fi
+      - name: Run full mutation suite
+        run: '"$(go env GOPATH)/bin/go-mutesting" --config .go-mutesting.yml ./...'

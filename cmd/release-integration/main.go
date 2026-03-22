@@ -80,11 +80,12 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	if err := run(ctx, cfg); err != nil {
-		log.Fatal(err)
+		stop()
+		log.Print(err)
+		os.Exit(1)
 	}
+	stop()
 }
 
 func run(ctx context.Context, cfg config) error {

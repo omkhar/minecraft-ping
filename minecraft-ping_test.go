@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/netip"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -1405,6 +1406,7 @@ func statusPongScript(statusJSON string, pongDelay time.Duration) func(*fakeMine
 }
 
 type stubResolver struct {
+	mu             sync.Mutex
 	srvRecords     []*net.SRV
 	srvErr         error
 	ipAddrs        []netip.Addr
@@ -1415,11 +1417,17 @@ type stubResolver struct {
 }
 
 func (r *stubResolver) LookupSRV(context.Context, string, string, string) (string, []*net.SRV, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	r.srvCalls++
 	return "", r.srvRecords, r.srvErr
 }
 
 func (r *stubResolver) LookupNetIP(_ context.Context, network string, _ string) ([]netip.Addr, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	r.ipCalls++
 	r.lookupNetworks = append(r.lookupNetworks, network)
 	return r.ipAddrs, r.ipErr
@@ -1431,6 +1439,7 @@ type dialResult struct {
 }
 
 type stubDialer struct {
+	mu         sync.Mutex
 	attempts   []string
 	networks   []string
 	results    map[string]dialResult
@@ -1438,6 +1447,9 @@ type stubDialer struct {
 }
 
 func (d *stubDialer) DialContext(_ context.Context, network string, address string) (net.Conn, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	d.attempts = append(d.attempts, address)
 	d.networks = append(d.networks, network)
 

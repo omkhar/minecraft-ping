@@ -64,20 +64,17 @@ scripts/run_release_integration.sh
 
 ## CI
 
-`CI` (`.github/workflows/go.yml`) runs:
+`PR Fast` (`.github/workflows/pr-fast.yml`) runs `go mod verify`, `actionlint`, `gofmt`, `goimports`, `go vet`, `staticcheck`, `ineffassign`, `gocritic`, `zizmor`, dependency review, `govulncheck`, `gosec`, `gitleaks`, Linux race tests, Linux shuffled tests, and diff-scoped mutation testing.
 
-- `govulncheck`
-- `gosec`
-- `go build`
-- native `go test` coverage on Linux, macOS, and Windows for `amd64` and `arm64`
-- a GoReleaser snapshot build that exercises release archives and Linux packages before tagging
-- Linux package install smoke tests on Debian, Ubuntu, Fedora, and Alpine for `amd64` and `arm64`
-- a final dual-stack release integration matrix that runs every released binary against the staging target with both `-4` and `-6`
-- diff-scoped mutation testing on pull requests
+`PR Network` (`.github/workflows/pr-network.yml`) runs a Linux dual-stack container integration gate when pull requests touch networking, packaging, workflow, or integration paths. It requires both `-4` and `-6` to succeed against the live staging container.
 
-The final integration harness runs a native staging backend everywhere so every OS and architecture is exercised by the real released binary. On Linux it also validates the containerized form of that same backend, and the IPv6 path is exposed through a local `::1` relay to avoid Docker runtime differences in direct IPv6 loopback publishing.
+`Main Verify` (`.github/workflows/go.yml`) runs the same lint, dependency, security, and Linux unit-test gates on `main`, then adds native `go test ./...` coverage on Linux, macOS, and Windows for `amd64` and `arm64`, a GoReleaser snapshot build, Linux package install smoke on Debian, Fedora, and Alpine for `amd64` and `arm64`, and the full release-archive dual-stack integration matrix.
 
-`Release` (`.github/workflows/release.yml`) uses GoReleaser to build signed archives for macOS, Linux, and Windows, build signed Linux `.deb`, `.rpm`, and `.apk` packages, inject the release version for `-version`, and publish the release assets on GitHub.
+The final integration harness executes real release artifacts everywhere. Linux validates the live staging container path; macOS and Windows validate the native staging backend because GitHub-hosted runners do not provide an equivalent portable dual-stack container runtime.
+
+`Deep Validation` (`.github/workflows/deep-validation.yml`) runs weekly or manually and covers the parser fuzz targets plus the full mutation suite.
+
+`Release` (`.github/workflows/release.yml`) only publishes from the exact signed tag at the current `main` head after `Main Verify` passes. It uses GoReleaser to build signed archives for macOS, Linux, and Windows, build signed Linux `.deb`, `.rpm`, and `.apk` packages, inject the release version for `-version`, publish signed SPDX SBOMs, and upload GitHub build provenance attestations for the release artifacts and SBOMs.
 
 ## Notes
 

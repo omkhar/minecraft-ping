@@ -1,78 +1,164 @@
-name: CI
+name: Main Verify
 
 on:
   push:
     branches: ["main"]
-  pull_request:
-    branches: ["main"]
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  checks: read # Read check metadata so GitHub surfaces workflow results consistently on pull requests.
+permissions: {}
 
 env:
+  ACTIONLINT_VERSION: v1.7.11
+  GITLEAKS_VERSION: v8.30.1
+  GOCRITIC_VERSION: v0.14.3
+  GOIMPORTS_MODULE_VERSION: v0.43.0
   GOVULNCHECK_VERSION: v1.1.4
   GOSEC_VERSION: v2.24.7
-  GO_MUTESTING_VERSION: v0.0.0-20251226130216-48d0401f00fb
   GORELEASER_VERSION: v2.14.3
+  INEFFASSIGN_VERSION: v0.2.0
+  STATICCHECK_VERSION: v0.7.0
   GOTOOLCHAIN: auto
 
 jobs:
-  ci-security:
-    name: ci-security
+  ci-lint:
+    name: ci-lint
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
           cache: true
-      - name: Cache Go tool binaries
+      - name: Cache Go lint tools
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/go/bin
-          key: go-tools-security-${{ runner.os }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}
-          restore-keys: |
-            go-tools-security-${{ runner.os }}-
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@"$GOVULNCHECK_VERSION"
-      - name: Run govulncheck
+          key: go-tools-lint-${{ runner.os }}-${{ env.ACTIONLINT_VERSION }}-${{ env.STATICCHECK_VERSION }}-${{ env.INEFFASSIGN_VERSION }}-${{ env.GOCRITIC_VERSION }}-${{ env.GOIMPORTS_MODULE_VERSION }}
+      - name: Install actionlint
         run: |
-          "$(go env GOPATH)/bin/govulncheck" ./...
-      - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@"$GOSEC_VERSION"
-      - name: Run gosec
+          if [[ ! -x "$(go env GOPATH)/bin/actionlint" ]]; then
+            go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+          fi
+      - name: Install staticcheck
         run: |
-          "$(go env GOPATH)/bin/gosec" ./...
+          if [[ ! -x "$(go env GOPATH)/bin/staticcheck" ]]; then
+            GOTOOLCHAIN=auto go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+          fi
+      - name: Install ineffassign
+        run: |
+          if [[ ! -x "$(go env GOPATH)/bin/ineffassign" ]]; then
+            GOTOOLCHAIN=auto go install "github.com/gordonklaus/ineffassign@${INEFFASSIGN_VERSION}"
+          fi
+      - name: Install goimports
+        run: |
+          if [[ ! -x "$(go env GOPATH)/bin/goimports" ]]; then
+            GOTOOLCHAIN=auto go install "golang.org/x/tools/cmd/goimports@${GOIMPORTS_MODULE_VERSION}"
+          fi
+      - name: Install gocritic
+        run: |
+          if [[ ! -x "$(go env GOPATH)/bin/gocritic" ]]; then
+            GOTOOLCHAIN=auto go install "github.com/go-critic/go-critic/cmd/gocritic@${GOCRITIC_VERSION}"
+          fi
+      - name: Verify module downloads
+        run: go mod verify
+      - name: Run actionlint
+        run: '"$(go env GOPATH)/bin/actionlint"'
+      - name: Check gofmt
+        run: |
+          mapfile -t go_files < <(rg --files -g '*.go')
+          if [[ "${#go_files[@]}" -eq 0 ]]; then
+            exit 0
+          fi
 
-  ci-build:
-    name: ci-build
-    needs: ci-security
+          gofmt_out="$(gofmt -l "${go_files[@]}")"
+          if [[ -n "${gofmt_out}" ]]; then
+            printf '%s\n' "${gofmt_out}"
+            exit 1
+          fi
+      - name: Check goimports
+        run: |
+          mapfile -t go_files < <(rg --files -g '*.go')
+          if [[ "${#go_files[@]}" -eq 0 ]]; then
+            exit 0
+          fi
+
+          goimports_out="$("$(go env GOPATH)/bin/goimports" -l "${go_files[@]}")"
+          if [[ -n "${goimports_out}" ]]; then
+            printf '%s\n' "${goimports_out}"
+            exit 1
+          fi
+      - name: Run go vet
+        run: go vet ./...
+      - name: Run staticcheck
+        run: '"$(go env GOPATH)/bin/staticcheck" ./...'
+      - name: Run ineffassign
+        run: '"$(go env GOPATH)/bin/ineffassign" ./...'
+      - name: Run gocritic
+        run: '"$(go env GOPATH)/bin/gocritic" check ./...'
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@71321a20a9ded102f6e9ce5718a2fcec2c4f70d8 # v0.5.2
+        with:
+          advanced-security: false
+          persona: auditor
+
+  ci-security:
+    name: ci-security
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-          cache: false
-      - name: Build
-        run: go build -v ./...
+          cache: true
+      - name: Cache Go security tools
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/go/bin
+          key: go-tools-security-${{ runner.os }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}-${{ env.GITLEAKS_VERSION }}
+      - name: Install govulncheck
+        run: |
+          if [[ ! -x "$(go env GOPATH)/bin/govulncheck" ]]; then
+            go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+          fi
+      - name: Install gosec
+        run: |
+          if [[ ! -x "$(go env GOPATH)/bin/gosec" ]]; then
+            go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
+          fi
+      - name: Install gitleaks
+        run: |
+          if [[ ! -x "$(go env GOPATH)/bin/gitleaks" ]]; then
+            go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
+          fi
+      - name: Run govulncheck
+        run: '"$(go env GOPATH)/bin/govulncheck" ./...'
+      - name: Run gosec
+        run: '"$(go env GOPATH)/bin/gosec" ./...'
+      - name: Run gitleaks
+        run: '"$(go env GOPATH)/bin/gitleaks" dir . --no-banner --redact --exit-code 1'
 
   ci-test:
     name: ci-test
-    needs: ci-build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -82,12 +168,17 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Run tests
-        run: go test ./...
+      - name: Run race tests
+        run: go test -race ./...
+      - name: Run shuffled tests
+        run: go test -shuffle=on -count=1 ./...
 
   ci-test-platforms:
     name: ci-test-platforms (${{ matrix.name }})
-    needs: ci-build
+    needs:
+      - ci-lint
+      - ci-security
+      - ci-test
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -105,6 +196,8 @@ jobs:
             runner: windows-latest
           - name: windows-arm64
             runner: windows-11-arm
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -120,9 +213,13 @@ jobs:
   release-snapshot:
     name: release-snapshot
     needs:
+      - ci-lint
+      - ci-security
       - ci-test
       - ci-test-platforms
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -159,6 +256,8 @@ jobs:
             runner: ubuntu-latest
           - arch: arm64
             runner: ubuntu-24.04-arm
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -211,6 +310,8 @@ jobs:
             backend: binary
             artifact_glob: minecraft-ping_*_Windows_arm64.zip
             binary_name: minecraft-ping.exe
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -270,30 +371,3 @@ jobs:
             '-server-binary', (Join-Path $env:RUNNER_TEMP 'minecraft-staging-server.exe')
           )
           go run ./cmd/release-integration @args
-
-  ci-mutation-pr:
-    name: ci-mutation-pr
-    if: github.event_name == 'pull_request'
-    needs: ci-build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Cache go-mutesting binary
-        id: go-mutesting-cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/go/bin/go-mutesting
-          key: go-mutesting-${{ runner.os }}-${{ env.GO_MUTESTING_VERSION }}
-      - name: Install go-mutesting
-        if: steps.go-mutesting-cache.outputs.cache-hit != 'true'
-        run: GOTOOLCHAIN=auto go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@"$GO_MUTESTING_VERSION"
-      - name: Run diff-scoped mutation tests
-        run: scripts/run_mutation_pr.sh

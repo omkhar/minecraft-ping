@@ -12,11 +12,18 @@ concurrency:
 
 permissions: {}
 
+env:
+  GORELEASER_VERSION: v2.14.3
+  SYFT_VERSION: v1.42.3
+  REQUIRED_MAIN_VERIFY_CONTEXTS: ci-lint,ci-security,ci-test,ci-test-platforms (linux-amd64),ci-test-platforms (linux-arm64),ci-test-platforms (macos-amd64),ci-test-platforms (macos-arm64),ci-test-platforms (windows-amd64),ci-test-platforms (windows-arm64),release-snapshot,release-linux-package-smoke (amd64),release-linux-package-smoke (arm64),release-binary-integration (linux-amd64),release-binary-integration (linux-arm64),release-binary-integration (macos-amd64),release-binary-integration (macos-arm64),release-binary-integration (windows-amd64),release-binary-integration (windows-arm64)
+
 jobs:
   release:
-    name: Build, Sign, And Publish Release Assets
+    name: Build, Sign, Attest, And Publish Release Assets
     runs-on: ubuntu-latest
+    environment: release
     permissions:
+      artifact-metadata: write # Upload build provenance attestations for published release assets.
       contents: write # Create the GitHub release and upload release assets for the pushed tag.
       id-token: write # Mint the OIDC identity token used for keyless Cosign signing.
     steps:
@@ -25,6 +32,39 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Validate release tag and target commit
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            echo "Release workflow must run from a tag ref." >&2
+            exit 1
+          fi
+
+          git fetch origin main --tags --force
+
+          if ! git rev-parse "${GITHUB_REF_NAME}^{tag}" >/dev/null 2>&1; then
+            echo "Release tags must be annotated." >&2
+            exit 1
+          fi
+
+          tag_object="$(git rev-parse "${GITHUB_REF_NAME}^{tag}")"
+          if ! git cat-file tag "$tag_object" | grep -q '^-----BEGIN PGP SIGNATURE-----$'; then
+            echo "Release tags must include an embedded OpenPGP signature." >&2
+            exit 1
+          fi
+
+          main_sha="$(git rev-parse origin/main)"
+          if [[ "${GITHUB_SHA}" != "${main_sha}" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} points at ${GITHUB_SHA}, but origin/main is ${main_sha}." >&2
+            echo "Tag the current main head to publish a release." >&2
+            exit 1
+          fi
+
+      - name: Wait for Main Verify checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/ci_wait_for_checks.sh "${GITHUB_SHA}" 90 "${REQUIRED_MAIN_VERIFY_CONTEXTS}"
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -40,14 +80,80 @@ jobs:
         with:
           cosign-release: v3.0.5
 
-      - name: Verify release config
-        run: cosign version
+      - name: Install Syft
+        run: go install "github.com/anchore/syft/cmd/syft@${SYFT_VERSION}"
+
+      - name: Verify release toolchain
+        run: |
+          cosign version
+          "$(go env GOPATH)/bin/syft" version
 
       - name: Build, sign, and publish release
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
           distribution: goreleaser
-          version: v2.14.3
+          version: ${{ env.GORELEASER_VERSION }}
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SPDX SBOMs
+        shell: bash
+        run: |
+          mkdir -p dist/sbom
+          mapfile -t subjects < <(
+            find dist -maxdepth 1 -type f -name 'minecraft-ping_*' ! -name '*.sigstore.json' | sort
+          )
+
+          if [[ "${#subjects[@]}" -eq 0 ]]; then
+            echo "No release artifacts found to scan." >&2
+            exit 1
+          fi
+
+          for subject in "${subjects[@]}"; do
+            output="dist/sbom/$(basename "$subject").spdx.json"
+            "$(go env GOPATH)/bin/syft" "file:${subject}" -o "spdx-json=${output}"
+          done
+
+      - name: Sign SPDX SBOMs
+        shell: bash
+        run: |
+          shopt -s nullglob
+          sboms=(dist/sbom/*.spdx.json)
+          if [[ "${#sboms[@]}" -eq 0 ]]; then
+            echo "No SBOMs were generated." >&2
+            exit 1
+          fi
+
+          for sbom in "${sboms[@]}"; do
+            cosign sign-blob --yes --bundle "${sbom}.sigstore.json" "${sbom}"
+          done
+
+      - name: Upload SPDX SBOM assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          assets=(dist/sbom/*.spdx.json dist/sbom/*.spdx.json.sigstore.json)
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
+
+      - name: Collect SBOM subjects
+        id: sbom-subjects
+        shell: bash
+        run: |
+          {
+            echo "paths<<EOF"
+            find dist/sbom -maxdepth 1 -type f -name '*.spdx.json' | sort
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-checksums: dist/checksums.txt
+
+      - name: Attest SBOMs
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: ${{ steps.sbom-subjects.outputs.paths }}
