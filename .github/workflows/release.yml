@@ -84,7 +84,28 @@ jobs:
           cosign-release: v3.0.5
 
       - name: Install Syft
-        run: go install "github.com/anchore/syft/cmd/syft@${SYFT_VERSION}"
+        shell: bash
+        run: |
+          arch="$(uname -m)"
+          case "${arch}" in
+            x86_64) syft_arch=amd64 ;;
+            aarch64|arm64) syft_arch=arm64 ;;
+            *)
+              echo "Unsupported release runner architecture: ${arch}" >&2
+              exit 1
+              ;;
+          esac
+
+          version="${SYFT_VERSION#v}"
+          tarball="syft_${version}_linux_${syft_arch}.tar.gz"
+          base_url="https://github.com/anchore/syft/releases/download/${SYFT_VERSION}"
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "${workdir}"' EXIT
+
+          curl -fsSL "${base_url}/${tarball}" -o "${workdir}/${tarball}"
+          curl -fsSL "${base_url}/syft_${version}_checksums.txt" -o "${workdir}/checksums.txt"
+          grep " ${tarball}\$" "${workdir}/checksums.txt" | sha256sum -c -
+          tar -xzf "${workdir}/${tarball}" -C "$(go env GOPATH)/bin" syft
 
       - name: Verify release toolchain
         run: |
