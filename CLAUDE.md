@@ -74,7 +74,7 @@ The final integration harness executes real release artifacts everywhere. Linux 
 
 `Deep Validation` (`.github/workflows/deep-validation.yml`) runs weekly or manually and covers the parser fuzz targets plus the full mutation suite.
 
-`Release` (`.github/workflows/release.yml`) only publishes from the exact signed tag at the current `main` head after `Main Verify` passes. It uses GoReleaser to build signed archives for macOS, Linux, and Windows, build signed Linux `.deb`, `.rpm`, and `.apk` packages, inject the release version for `-version`, publish signed SPDX SBOMs, and upload GitHub build provenance attestations for the release artifacts and SBOMs.
+`Release` (`.github/workflows/release.yml`) only publishes from the exact signed tag at the current `main` head after `Main Verify` passes. It uses GoReleaser to build signed archives for macOS, Linux, and Windows, build signed Linux `.deb`, `.rpm`, and `.apk` packages, inject the release version for `-version`, publish signed SPDX SBOMs, and upload GitHub build provenance attestations for the release artifacts and SBOMs when the repository visibility supports that feature.
 
 ## Notes
 

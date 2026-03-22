@@ -92,7 +92,7 @@ Local development builds print `minecraft-ping dev` for `-version`. Tagged relea
 - `PR Network`: runs a Linux dual-stack integration gate on pull requests that touch Go, Docker, workflow, or release-integration paths. It builds the staging Minecraft container, executes the real CLI against it, and requires both `-4` and `-6` to succeed.
 - `Main Verify`: runs the same lint, dependency, security, and Linux test gates on `main`, then runs native `go test ./...` on Linux, macOS, and Windows for `amd64` and `arm64`, a GoReleaser snapshot build, Linux package install smoke tests on Debian, Fedora, and Alpine for `amd64` and `arm64`, and a final dual-stack release-archive integration matrix that executes every shipped binary with both `-4` and `-6`.
 - `Deep Validation`: runs weekly or manually and covers the parser fuzz targets plus the full mutation suite.
-- `Release`: waits for the exact tagged `main` commit to pass `Main Verify`, then builds cross-platform archives plus Linux distro packages with GoReleaser, injects the release version used by `-version`, signs the release artifacts with keyless `cosign`, publishes signed SPDX SBOMs, and uploads GitHub build provenance attestations.
+- `Release`: waits for the exact tagged `main` commit to pass `Main Verify`, then builds cross-platform archives plus Linux distro packages with GoReleaser, injects the release version used by `-version`, signs the release artifacts with keyless `cosign`, publishes signed SPDX SBOMs, and uploads GitHub build provenance attestations when the repository visibility supports them.
 
 ## Operations
 
@@ -111,7 +111,7 @@ The final integration gate uses a small first-party staging backend that speaks 
 - Release assets also include signed SPDX SBOM files for every published archive and package.
 - Every uploaded asset includes a matching `.sigstore.json` bundle.
 - `checksums.txt` is also signed and published.
-- GitHub artifact attestations publish build provenance for the release artifacts and SBOMs.
+- GitHub artifact attestations publish build provenance for the release artifacts and SBOMs when they are supported by the repository visibility and ownership model.
 
 Example verification:
 
@@ -123,7 +123,7 @@ cosign verify-blob \
   checksums.txt
 ```
 
-For build provenance, verify the GitHub artifact attestations attached to the release workflow run or the corresponding release assets in the repository attestation view.
+For build provenance, verify the GitHub artifact attestations attached to the release workflow run when that feature is available for the repository.
 
 ## Security Notes
 
