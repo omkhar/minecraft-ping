@@ -48,27 +48,27 @@ jobs:
       - name: Install actionlint
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/actionlint" ]]; then
-            GOTOOLCHAIN="$(go env GOVERSION)" go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+            go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
           fi
       - name: Install staticcheck
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/staticcheck" ]]; then
-            GOTOOLCHAIN="$(go env GOVERSION)" go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+            GOTOOLCHAIN=auto go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
           fi
       - name: Install ineffassign
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/ineffassign" ]]; then
-            GOTOOLCHAIN="$(go env GOVERSION)" go install "github.com/gordonklaus/ineffassign@${INEFFASSIGN_VERSION}"
+            GOTOOLCHAIN=auto go install "github.com/gordonklaus/ineffassign@${INEFFASSIGN_VERSION}"
           fi
       - name: Install goimports
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/goimports" ]]; then
-            GOTOOLCHAIN="$(go env GOVERSION)" go install "golang.org/x/tools/cmd/goimports@${GOIMPORTS_MODULE_VERSION}"
+            GOTOOLCHAIN=auto go install "golang.org/x/tools/cmd/goimports@${GOIMPORTS_MODULE_VERSION}"
           fi
       - name: Install gocritic
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/gocritic" ]]; then
-            GOTOOLCHAIN="$(go env GOVERSION)" go install "github.com/go-critic/go-critic/cmd/gocritic@${GOCRITIC_VERSION}"
+            GOTOOLCHAIN=auto go install "github.com/go-critic/go-critic/cmd/gocritic@${GOCRITIC_VERSION}"
           fi
       - name: Verify module downloads
         run: go mod verify
@@ -135,12 +135,12 @@ jobs:
       - name: Install govulncheck
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/govulncheck" ]]; then
-            GOTOOLCHAIN="$(go env GOVERSION)" go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+            go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
           fi
       - name: Install gosec
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/gosec" ]]; then
-            GOTOOLCHAIN="$(go env GOVERSION)" go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
+            go install "github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}"
           fi
       - name: Install gitleaks
         run: |
@@ -231,7 +231,7 @@ jobs:
           go-version-file: go.mod
           cache: false
       - name: Install GoReleaser CLI
-        run: GOTOOLCHAIN="$(go env GOVERSION)" go install "github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}"
+        run: GOTOOLCHAIN=auto go install "github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}"
       - name: Build snapshot release artifacts
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
