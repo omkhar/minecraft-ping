@@ -33,9 +33,9 @@ jobs:
           cache: true
       - name: Run fuzz targets
         run: |
-          go test ./... -run=^$ -fuzz=FuzzReadVarIntFromBytes -fuzztime=2m
-          go test ./... -run=^$ -fuzz=FuzzReadStringFromBytes -fuzztime=2m
-          go test ./... -run=^$ -fuzz=FuzzReadPacket -fuzztime=2m
+          go test . -run=^$ -fuzz=FuzzReadVarIntFromBytes -fuzztime=2m
+          go test . -run=^$ -fuzz=FuzzReadStringFromBytes -fuzztime=2m
+          go test . -run=^$ -fuzz=FuzzReadPacket -fuzztime=2m
 
   deep-mutation:
     name: deep-mutation
