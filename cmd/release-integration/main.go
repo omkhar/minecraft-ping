@@ -60,6 +60,8 @@ type probeSpec struct {
 
 const maxExtractedBinarySize int64 = 64 << 20
 
+var execCommandContext = exec.CommandContext
+
 func probeSpecs(cfg config) []probeSpec {
 	return []probeSpec{
 		{
@@ -91,42 +93,53 @@ func probeSpecs(cfg config) []probeSpec {
 	}
 }
 
-func main() {
-	cfg := config{
-		containerName: fmt.Sprintf("minecraft-ping-release-integration-%d", os.Getpid()),
-	}
+func bindFlags(fs *flag.FlagSet, cfg *config) {
+	fs.StringVar(&cfg.backend, "backend", "binary", "Integration backend: binary or container")
+	fs.StringVar(&cfg.archiveGlob, "binary-archive-glob", "", "Glob that resolves to a release archive containing the binary to execute")
+	fs.StringVar(&cfg.binaryName, "binary-name", "", "Binary name inside the release archive")
+	fs.StringVar(&cfg.binaryPath, "binary", "", "Path to an already extracted binary to execute")
+	fs.StringVar(&cfg.containerCLI, "container-cli", "docker", "Container CLI used to run the Minecraft container")
+	fs.StringVar(&cfg.containerName, "container-name", cfg.containerName, "Container name used for the integration target")
+	fs.StringVar(&cfg.expectedVersion, "expected-version", "", "Expected output of the released binary version string, without the leading program name")
+	fs.StringVar(&cfg.imageArchive, "image-archive", "", "Optional path to a compressed docker/podman image archive (.tar.gz)")
+	fs.StringVar(&cfg.imageTag, "image-tag", "minecraft-staging-image:ci", "Tag of the staging image to run after it is loaded")
+	fs.StringVar(&cfg.ipv4Host, "ipv4-host", "127.0.0.1", "IPv4 hostname used by the released binary")
+	fs.StringVar(&cfg.ipv6Host, "ipv6-host", "::1", "IPv6 hostname used by the released binary")
+	fs.IntVar(&cfg.javaIPv4Port, "java-ipv4-port", 45565, "Java IPv4 host port used by the released binary")
+	fs.IntVar(&cfg.javaIPv6Port, "java-ipv6-port", 45566, "Java IPv6 host port used by the released binary")
+	fs.IntVar(&cfg.bedrockIPv4Port, "bedrock-ipv4-port", 49132, "Bedrock IPv4 host port used by the released binary")
+	fs.IntVar(&cfg.bedrockIPv6Port, "bedrock-ipv6-port", 49133, "Bedrock IPv6 host port used by the released binary")
+	fs.DurationVar(&cfg.probeTimeout, "probe-timeout", 12*time.Second, "Timeout passed through to the ping binary")
+	fs.StringVar(&cfg.serverBinary, "server-binary", "", "Path to the staging backend binary when -backend=binary")
+}
 
-	flag.StringVar(&cfg.backend, "backend", "binary", "Integration backend: binary or container")
-	flag.StringVar(&cfg.archiveGlob, "binary-archive-glob", "", "Glob that resolves to a release archive containing the binary to execute")
-	flag.StringVar(&cfg.binaryName, "binary-name", "", "Binary name inside the release archive")
-	flag.StringVar(&cfg.binaryPath, "binary", "", "Path to an already extracted binary to execute")
-	flag.StringVar(&cfg.containerCLI, "container-cli", "docker", "Container CLI used to run the Minecraft container")
-	flag.StringVar(&cfg.containerName, "container-name", cfg.containerName, "Container name used for the integration target")
-	flag.StringVar(&cfg.expectedVersion, "expected-version", "", "Expected output of the released binary version string, without the leading program name")
-	flag.StringVar(&cfg.imageArchive, "image-archive", "", "Optional path to a compressed docker/podman image archive (.tar.gz)")
-	flag.StringVar(&cfg.imageTag, "image-tag", "minecraft-staging-image:ci", "Tag of the staging image to run after it is loaded")
-	flag.StringVar(&cfg.ipv4Host, "ipv4-host", "127.0.0.1", "IPv4 hostname used by the released binary")
-	flag.StringVar(&cfg.ipv6Host, "ipv6-host", "::1", "IPv6 hostname used by the released binary")
-	flag.IntVar(&cfg.javaIPv4Port, "java-ipv4-port", 45565, "Java IPv4 host port used by the released binary")
-	flag.IntVar(&cfg.javaIPv6Port, "java-ipv6-port", 45566, "Java IPv6 host port used by the released binary")
-	flag.IntVar(&cfg.bedrockIPv4Port, "bedrock-ipv4-port", 49132, "Bedrock IPv4 host port used by the released binary")
-	flag.IntVar(&cfg.bedrockIPv6Port, "bedrock-ipv6-port", 49133, "Bedrock IPv6 host port used by the released binary")
-	flag.DurationVar(&cfg.probeTimeout, "probe-timeout", 12*time.Second, "Timeout passed through to the ping binary")
-	flag.StringVar(&cfg.serverBinary, "server-binary", "", "Path to the staging backend binary when -backend=binary")
-	flag.Parse()
-
+func validateConfig(cfg config) error {
 	if cfg.binaryPath == "" && (cfg.archiveGlob == "" || cfg.binaryName == "") {
-		log.Fatal("either -binary or both -binary-archive-glob and -binary-name are required")
+		return errors.New("either -binary or both -binary-archive-glob and -binary-name are required")
 	}
 
 	switch cfg.backend {
 	case "binary":
 		if cfg.serverBinary == "" {
-			log.Fatal("missing -server-binary for -backend=binary")
+			return errors.New("missing -server-binary for -backend=binary")
 		}
 	case "container":
 	default:
-		log.Fatalf("unsupported -backend %q", cfg.backend)
+		return fmt.Errorf("unsupported -backend %q", cfg.backend)
+	}
+
+	return nil
+}
+
+func main() {
+	cfg := config{
+		containerName: fmt.Sprintf("minecraft-ping-release-integration-%d", os.Getpid()),
+	}
+	bindFlags(flag.CommandLine, &cfg)
+	flag.Parse()
+
+	if err := validateConfig(cfg); err != nil {
+		log.Fatal(err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -216,7 +229,7 @@ func assertVersion(ctx context.Context, binaryPath, expectedVersion string) erro
 	defer cancel()
 
 	// #nosec G204 -- binary path is selected by the integration harness from local release artifacts under test.
-	cmd := exec.CommandContext(commandCtx, binaryPath, "-V")
+	cmd := execCommandContext(commandCtx, binaryPath, "-V")
 	stdout, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
@@ -253,7 +266,7 @@ func startBinaryBackend(ctx context.Context, cfg config, cleanup *[]func()) erro
 	log.Printf("starting staging backend %s", cfg.serverBinary)
 
 	// #nosec G204 -- staging server binary path is produced by trusted CI/local integration setup.
-	cmd := exec.CommandContext(
+	cmd := execCommandContext(
 		ctx,
 		cfg.serverBinary,
 		"-listen4", net.JoinHostPort(cfg.ipv4Host, fmt.Sprint(cfg.javaIPv4Port)),
@@ -503,7 +516,7 @@ func loadImage(ctx context.Context, containerCLI, archivePath string) error {
 	defer gzipReader.Close()
 
 	// #nosec G204 -- container CLI comes from trusted CI/local test configuration for this integration harness.
-	cmd := exec.CommandContext(ctx, containerCLI, "load")
+	cmd := execCommandContext(ctx, containerCLI, "load")
 	cmd.Stdin = gzipReader
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -515,7 +528,7 @@ func loadImage(ctx context.Context, containerCLI, archivePath string) error {
 
 func removeContainer(ctx context.Context, containerCLI, containerName string) error {
 	// #nosec G204 -- container CLI and name are controlled by the integration harness configuration.
-	cmd := exec.CommandContext(ctx, containerCLI, "rm", "-f", containerName)
+	cmd := execCommandContext(ctx, containerCLI, "rm", "-f", containerName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		var exitErr *exec.ExitError
@@ -545,7 +558,7 @@ func startContainer(ctx context.Context, cfg config) error {
 	log.Printf("starting minecraft container %s using %s", cfg.containerName, cfg.containerCLI)
 
 	// #nosec G204 -- image tag and container CLI are chosen by CI/local integration configuration.
-	cmd := exec.CommandContext(
+	cmd := execCommandContext(
 		ctx,
 		cfg.containerCLI,
 		"run",
@@ -615,7 +628,7 @@ func runProbe(ctx context.Context, binaryPath string, timeout time.Duration, spe
 	args = append(args, spec.familyFlag, net.JoinHostPort(spec.host, fmt.Sprint(spec.port)))
 
 	// #nosec G204 -- extracted binary path is selected by the harness from local release artifacts under test.
-	cmd := exec.CommandContext(commandCtx, binaryPath, args...)
+	cmd := execCommandContext(commandCtx, binaryPath, args...)
 
 	stdout, err := cmd.Output()
 	if err != nil {
