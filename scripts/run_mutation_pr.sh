@@ -19,9 +19,12 @@ if ! git rev-parse --verify "origin/$base_ref^{commit}" >/dev/null 2>&1; then
   exit 1
 fi
 
-mapfile -t go_files < <(git diff --name-only "origin/$base_ref...HEAD" -- '*.go')
+mapfile -t go_files < <(
+  git diff --name-only "origin/$base_ref...HEAD" -- '*.go' |
+    awk '!/_test\.go$/'
+)
 if [[ "${#go_files[@]}" -eq 0 ]]; then
-  echo "No Go files changed; skipping PR mutation run."
+  echo "No non-test Go files changed; skipping PR mutation run."
   exit 0
 fi
 
