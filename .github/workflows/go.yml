@@ -241,8 +241,6 @@ jobs:
       - name: Smoke test release archives
         run: scripts/release_archive_smoke.sh dist
       - name: Check release reproducibility
-        env:
-          GORELEASER_BIN: ${{ env.HOME }}/go/bin/goreleaser
         run: scripts/release_reproducibility.sh dist
       - name: Upload snapshot release artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
