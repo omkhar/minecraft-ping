@@ -56,18 +56,18 @@ func prepareBedrockProbe(ctx context.Context, client pingClient, target targetSp
 		return nil, fmt.Errorf("failed to resolve bedrock server %s: %w", target.Host, err)
 	}
 
-	prepared := bedrockPreparedProbe{
+	prepared := &bedrockPreparedProbe{
 		client:     client,
 		target:     target,
 		candidates: candidates,
 	}
-	if len(candidates) > 0 {
+	if len(candidates) == 1 {
 		prepared.displayTarget = candidates[0].address
 	}
 	return prepared, nil
 }
 
-func (p bedrockPreparedProbe) banner(numeric bool) string {
+func (p *bedrockPreparedProbe) banner(numeric bool) string {
 	label := p.summaryLabel(numeric)
 	displayPort := p.target.defaultPort(addressFamilyAny, editionBedrock)
 	if p.displayTarget.IsValid() {
@@ -83,14 +83,20 @@ func (p bedrockPreparedProbe) banner(numeric bool) string {
 	return fmt.Sprintf("PING %s port %d [%s]:", label, displayPort, editionBedrock)
 }
 
-func (p bedrockPreparedProbe) summaryLabel(numeric bool) string {
+func (p *bedrockPreparedProbe) summaryLabel(numeric bool) string {
 	if numeric && p.displayTarget.IsValid() {
 		return p.displayTarget.Addr().String()
 	}
 	return p.target.Host
 }
 
-func (p bedrockPreparedProbe) probe(ctx context.Context, timeout time.Duration) (probeSample, error) {
+func (p *bedrockPreparedProbe) observeSample(sample probeSample) {
+	if sample.remote.IsValid() {
+		p.displayTarget = sample.remote
+	}
+}
+
+func (p *bedrockPreparedProbe) probe(ctx context.Context, timeout time.Duration) (probeSample, error) {
 	return pingBedrockCandidates(ctx, p.client, p.candidates, timeout)
 }
 

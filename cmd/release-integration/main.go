@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/omkhar/minecraft-ping/internal/stagingserver"
+	"github.com/omkhar/minecraft-ping/v2/internal/stagingserver"
 )
 
 type config struct {
@@ -32,6 +32,7 @@ type config struct {
 	binaryPath      string
 	containerCLI    string
 	containerName   string
+	expectedVersion string
 	imageArchive    string
 	imageTag        string
 	ipv4Host        string
@@ -101,6 +102,7 @@ func main() {
 	flag.StringVar(&cfg.binaryPath, "binary", "", "Path to an already extracted binary to execute")
 	flag.StringVar(&cfg.containerCLI, "container-cli", "docker", "Container CLI used to run the Minecraft container")
 	flag.StringVar(&cfg.containerName, "container-name", cfg.containerName, "Container name used for the integration target")
+	flag.StringVar(&cfg.expectedVersion, "expected-version", "", "Expected output of the released binary version string, without the leading program name")
 	flag.StringVar(&cfg.imageArchive, "image-archive", "", "Optional path to a compressed docker/podman image archive (.tar.gz)")
 	flag.StringVar(&cfg.imageTag, "image-tag", "minecraft-staging-image:ci", "Tag of the staging image to run after it is loaded")
 	flag.StringVar(&cfg.ipv4Host, "ipv4-host", "127.0.0.1", "IPv4 hostname used by the released binary")
@@ -145,6 +147,13 @@ func run(ctx context.Context, cfg config) error {
 		if err != nil {
 			return err
 		}
+		if cfg.expectedVersion == "" {
+			expectedVersion, err := versionFromArchiveName(archivePath)
+			if err != nil {
+				return err
+			}
+			cfg.expectedVersion = expectedVersion
+		}
 
 		extractedBinary, removeTempDir, err := extractBinary(archivePath, cfg.binaryName)
 		if err != nil {
@@ -159,6 +168,12 @@ func run(ctx context.Context, cfg config) error {
 			cleanup[i]()
 		}
 	}()
+
+	if cfg.expectedVersion != "" {
+		if err := assertVersion(ctx, binaryPath, cfg.expectedVersion); err != nil {
+			return err
+		}
+	}
 
 	if err := startBackend(ctx, cfg, &cleanup); err != nil {
 		return err
@@ -175,6 +190,52 @@ func run(ctx context.Context, cfg config) error {
 
 	log.Printf("release integration succeeded: %s", strings.Join(results, " "))
 	return nil
+}
+
+func versionFromArchiveName(archivePath string) (string, error) {
+	base := filepath.Base(archivePath)
+	base = strings.TrimSuffix(base, ".tar.gz")
+	base = strings.TrimSuffix(base, ".zip")
+
+	const prefix = "minecraft-ping_"
+	if !strings.HasPrefix(base, prefix) {
+		return "", fmt.Errorf("derive version from archive %q: unexpected name", archivePath)
+	}
+
+	for _, marker := range []string{"_Darwin_", "_Linux_", "_Windows_"} {
+		if index := strings.Index(base, marker); index >= 0 {
+			return strings.TrimPrefix(base[:index], prefix), nil
+		}
+	}
+
+	return "", fmt.Errorf("derive version from archive %q: unsupported name", archivePath)
+}
+
+func assertVersion(ctx context.Context, binaryPath, expectedVersion string) error {
+	commandCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	// #nosec G204 -- binary path is selected by the integration harness from local release artifacts under test.
+	cmd := exec.CommandContext(commandCtx, binaryPath, "-V")
+	stdout, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return fmt.Errorf("version check failed: %w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return fmt.Errorf("run version check: %w", err)
+	}
+
+	got := strings.TrimSpace(string(stdout))
+	want := versionLine(expectedVersion)
+	if got != want {
+		return fmt.Errorf("version check failed: got %q, want %q", got, want)
+	}
+	return nil
+}
+
+func versionLine(version string) string {
+	return fmt.Sprintf("minecraft-ping %s", version)
 }
 
 func startBackend(ctx context.Context, cfg config, cleanup *[]func()) error {

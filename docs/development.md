@@ -101,6 +101,12 @@ Validate the generated release archives:
 scripts/release_archive_smoke.sh dist
 ```
 
+Validate that the snapshot artifacts are reproducible across checkout paths:
+
+```bash
+scripts/release_reproducibility.sh dist
+```
+
 Then run the smoke test for a Linux architecture your container runtime can execute:
 
 ```bash
@@ -113,8 +119,15 @@ or:
 scripts/release_linux_package_smoke.sh dist arm64
 ```
 
+If you use Podman instead of Docker, set the runtime explicitly:
+
+```bash
+CONTAINER_CLI=podman scripts/release_linux_package_smoke.sh dist amd64
+```
+
 This path validates installability and basic execution of the generated `.deb`, `.rpm`, and `.apk` packages.
 It also verifies that the packaged `minecraft-ping(1)` man page is installed.
+The package smoke script also asserts that the shipped binary reports the expected stamped version.
 
 ## CI Coverage
 
@@ -126,6 +139,7 @@ It also verifies that the packaged `minecraft-ping(1)` man page is installed.
 - lint, security, and workflow policy checks
 - GoReleaser snapshot builds
 - release archive smoke tests
+- release reproducibility smoke tests against a second detached worktree
 - Linux package smoke tests
 - release-archive integration against the staging backend or staging container
 

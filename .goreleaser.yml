@@ -2,10 +2,17 @@ version: 2
 
 project_name: minecraft-ping
 
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
+
 builds:
   - id: minecraft-ping
     main: .
     binary: minecraft-ping
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+      - -buildvcs=false
     ldflags:
       - -X main.cliVersion={{ .Version }}
     env:
@@ -23,6 +30,8 @@ archives:
     ids:
       - minecraft-ping
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ title .Os }}_{{ .Arch }}"
+    builds_info:
+      mtime: "{{ .CommitDate }}"
     formats:
       - tar.gz
     format_overrides:
@@ -30,9 +39,15 @@ archives:
         formats:
           - zip
     files:
-      - LICENSE
-      - README.md
-      - man/minecraft-ping.1
+      - src: LICENSE
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: man/minecraft-ping.1
+        info:
+          mtime: "{{ .CommitDate }}"
 
 nfpms:
   - id: linux-packages
@@ -47,6 +62,7 @@ nfpms:
     section: utils
     priority: optional
     bindir: /usr/bin
+    mtime: "{{ .CommitDate }}"
     formats:
       - deb
       - rpm
@@ -54,10 +70,16 @@ nfpms:
     contents:
       - src: LICENSE
         dst: /usr/share/doc/minecraft-ping/LICENSE
+        file_info:
+          mtime: "{{ .CommitDate }}"
       - src: README.md
         dst: /usr/share/doc/minecraft-ping/README.md
+        file_info:
+          mtime: "{{ .CommitDate }}"
       - src: man/minecraft-ping.1
         dst: /usr/share/man/man1/minecraft-ping.1
+        file_info:
+          mtime: "{{ .CommitDate }}"
 
 checksum:
   name_template: checksums.txt

@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/omkhar/minecraft-ping/internal/stagingserver"
+	"github.com/omkhar/minecraft-ping/v2/internal/stagingserver"
 )
 
 func main() {

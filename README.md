@@ -9,6 +9,12 @@
 
 ## Installation
 
+Install the public module:
+
+```bash
+go install github.com/omkhar/minecraft-ping/v2@latest
+```
+
 Install from a checkout:
 
 ```bash
@@ -98,8 +104,8 @@ If a port is present in the destination, it always wins.
 ## Exit Status
 
 - `0`: at least one reply was received, or a JSON probe succeeded
-- `1`: no replies were received, or a JSON probe failed
-- `2`: invalid argv or a setup/runtime error occurred before a meaningful probe completed
+- `1`: no replies were received, or a JSON probe reached the probe step and failed
+- `2`: invalid argv or a setup/runtime error occurred before a meaningful probe completed, including JSON prepare/setup failures
 
 ## Protocol Behavior
 
@@ -153,12 +159,14 @@ CONTAINER_CLI="${CONTAINER_CLI:-docker}"
 Then run the integration script. Set `CONTAINER_CLI=podman` if you are using Podman, or point the script at an existing image with `MINECRAFT_STAGING_IMAGE`.
 
 For packaging changes, also run `scripts/release_archive_smoke.sh dist` after a snapshot build and reproduce the Linux package smoke path described in [docs/development.md](docs/development.md) when your environment supports it.
+If you are changing the release path itself, also run `scripts/release_reproducibility.sh dist` to confirm the snapshot artifacts rebuild identically from a second checkout path.
 
 ## Release Artifacts
 
 Releases are built from GitHub Actions on signed, annotated tags at the current `main` head.
 
 - Signed release artifacts are published for macOS, Linux, and Windows.
+- Release archives and packages are built with deterministic paths and commit-based mtimes so the artifact bytes can be reproduced from the same source tree and toolchain.
 - The release workflow is configured to publish signed SPDX SBOM assets for each release.
 - GitHub artifact attestations and downloaded provenance bundles are published automatically when repository visibility and ownership support them.
 - Until GitHub supports first-party attestations for the active repository configuration, releases continue to publish signed artifacts and signed SBOM assets.

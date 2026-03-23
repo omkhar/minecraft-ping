@@ -26,8 +26,41 @@ if [[ "${#go_files[@]}" -eq 0 ]]; then
 fi
 
 mapfile -t dirs < <(printf '%s\n' "${go_files[@]}" | xargs -n1 dirname | sort -u)
+
+eligible_dirs=()
 for dir in "${dirs[@]}"; do
   [[ -d "$dir" ]] || continue
+
+  package_path="$dir"
+  if [[ "$package_path" != "." ]]; then
+    package_path="./$package_path"
+  fi
+
+  if ! package_info="$(go list -f '{{.Name}} {{len .TestGoFiles}} {{len .XTestGoFiles}}' "$package_path" 2>/dev/null)"; then
+    echo "Skipping mutation tests for $dir (unable to load package metadata)"
+    continue
+  fi
+
+  read -r package_name package_tests package_xtests <<<"$package_info"
+  if [[ "$package_name" == "main" ]]; then
+    echo "Skipping mutation tests for $dir (package main is not a supported mutation target)"
+    continue
+  fi
+
+  if (( package_tests + package_xtests == 0 )); then
+    echo "Skipping mutation tests for $dir (no package tests found)"
+    continue
+  fi
+
+  eligible_dirs+=("$dir")
+done
+
+if [[ "${#eligible_dirs[@]}" -eq 0 ]]; then
+  echo "No eligible non-main Go packages changed; skipping PR mutation run."
+  exit 0
+fi
+
+for dir in "${eligible_dirs[@]}"; do
   echo "Running mutation tests for $dir"
   "$MUTEST_BIN" --config .go-mutesting.yml --exec-timeout 30 "$dir"
 done

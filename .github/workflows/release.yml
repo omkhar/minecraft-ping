@@ -122,6 +122,13 @@ jobs:
 
           curl -fsSL "${base_url}/${tarball}" -o "${workdir}/${tarball}"
           curl -fsSL "${base_url}/syft_${version}_checksums.txt" -o "${workdir}/checksums.txt"
+          curl -fsSL "${base_url}/syft_${version}_checksums.txt.pem" -o "${workdir}/checksums.txt.pem"
+          curl -fsSL "${base_url}/syft_${version}_checksums.txt.sig" -o "${workdir}/checksums.txt.sig"
+          cosign verify-blob "${workdir}/checksums.txt" \
+            --certificate "${workdir}/checksums.txt.pem" \
+            --signature "${workdir}/checksums.txt.sig" \
+            --certificate-identity-regexp 'https://github\\.com/anchore/syft/\\.github/workflows/.+' \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" >/dev/null
           (
             cd "${workdir}"
             grep " ${tarball}\$" checksums.txt | sha256sum -c -

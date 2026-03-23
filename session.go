@@ -17,6 +17,7 @@ type probeSample struct {
 type preparedProbe interface {
 	banner(numeric bool) string
 	summaryLabel(numeric bool) string
+	observeSample(sample probeSample)
 	probe(ctx context.Context, timeout time.Duration) (probeSample, error)
 }
 
@@ -135,6 +136,7 @@ func runTextSession(ctx context.Context, stdout io.Writer, cfg cliConfig, probe 
 		stats.transmitted++
 		sample, err := probe.probe(ctx, timeout)
 		if err == nil {
+			probe.observeSample(sample)
 			stats.received++
 			stats.rtt.add(sample.latency)
 			if !cfg.Quiet {
