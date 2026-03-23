@@ -69,6 +69,9 @@ find_package() {
 deb_pkg="$(find_package "${deb_patterns[@]}")"
 rpm_pkg="$(find_package "${rpm_patterns[@]}")"
 apk_pkg="$(find_package "${apk_patterns[@]}")"
+expected_version="${deb_pkg#minecraft-ping_}"
+expected_version="${expected_version%_linux_*}"
+expected_version_line="minecraft-ping ${expected_version}"
 
 run_container_smoke() {
   local label="$1"
@@ -94,7 +97,7 @@ run_container_smoke \
   "export DEBIAN_FRONTEND=noninteractive
    dpkg -i /dist/$deb_pkg
    ${manpage_check}
-   /usr/bin/minecraft-ping -V
+   test \"$(/usr/bin/minecraft-ping -V)\" = \"$expected_version_line\"
    /usr/bin/minecraft-ping -h >/dev/null"
 
 run_container_smoke \
@@ -102,7 +105,7 @@ run_container_smoke \
   "fedora:42" \
   "rpm -i --nosignature /dist/$rpm_pkg
    ${manpage_check}
-   /usr/bin/minecraft-ping -V
+   test \"$(/usr/bin/minecraft-ping -V)\" = \"$expected_version_line\"
    /usr/bin/minecraft-ping -h >/dev/null"
 
 run_container_smoke \
@@ -110,7 +113,7 @@ run_container_smoke \
   "alpine:3.21" \
   "apk add --no-cache --no-network --allow-untrusted --repositories-file /dev/null --force-non-repository /dist/$apk_pkg
    ${manpage_check}
-   /usr/bin/minecraft-ping -V
+   test \"$(/usr/bin/minecraft-ping -V)\" = \"$expected_version_line\"
    /usr/bin/minecraft-ping -h >/dev/null"
 
 echo "linux package smoke succeeded for $TARGET_ARCH"

@@ -30,20 +30,20 @@ func prepareJavaProbe(ctx context.Context, client pingClient, target targetSpec,
 		return nil, fmt.Errorf("failed to resolve java server %s: %w", target.Host, err)
 	}
 
-	prepared := javaPreparedProbe{
+	prepared := &javaPreparedProbe{
 		client:     client,
 		target:     target,
 		route:      route,
 		candidates: candidates,
 	}
-	if len(candidates) > 0 {
+	if len(candidates) == 1 {
 		prepared.displayTarget = candidates[0].address
 	}
 
 	return prepared, nil
 }
 
-func (p javaPreparedProbe) banner(numeric bool) string {
+func (p *javaPreparedProbe) banner(numeric bool) string {
 	label := p.summaryLabel(numeric)
 	displayPort := p.route.Handshake.Port
 	if p.displayTarget.IsValid() && !numeric && p.target.Host != p.displayTarget.Addr().String() {
@@ -55,14 +55,20 @@ func (p javaPreparedProbe) banner(numeric bool) string {
 	return fmt.Sprintf("PING %s port %d [%s]:", label, displayPort, editionJava)
 }
 
-func (p javaPreparedProbe) summaryLabel(numeric bool) string {
+func (p *javaPreparedProbe) summaryLabel(numeric bool) string {
 	if numeric && p.displayTarget.IsValid() {
 		return p.displayTarget.Addr().String()
 	}
 	return p.target.Host
 }
 
-func (p javaPreparedProbe) probe(ctx context.Context, timeout time.Duration) (probeSample, error) {
+func (p *javaPreparedProbe) observeSample(sample probeSample) {
+	if sample.remote.IsValid() {
+		p.displayTarget = sample.remote
+	}
+}
+
+func (p *javaPreparedProbe) probe(ctx context.Context, timeout time.Duration) (probeSample, error) {
 	return p.client.pingJavaPreparedContext(ctx, p.route, p.candidates, timeout)
 }
 

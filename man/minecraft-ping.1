@@ -132,11 +132,12 @@ and
 At least one reply was received, or a JSON probe succeeded.
 .TP
 .B 1
-No replies were received, or a JSON probe failed.
+No replies were received, or a JSON probe reached the probe step and failed.
 .TP
 .B 2
 Invalid argv or a setup or runtime error occurred
-before a meaningful probe completed.
+before a meaningful probe completed,
+including JSON prepare or setup failures.
 .SH EXAMPLES
 .EX
 minecraft-ping mc.example.com

@@ -28,6 +28,8 @@ func (p *stubPreparedProbe) summaryLabel(bool) string {
 	return p.summaryText
 }
 
+func (p *stubPreparedProbe) observeSample(probeSample) {}
+
 func (p *stubPreparedProbe) probe(_ context.Context, timeout time.Duration) (probeSample, error) {
 	if len(p.timeouts) < len(p.samples)+len(p.errs)+1 {
 		p.timeouts = append(p.timeouts, 0)
@@ -270,6 +272,33 @@ func TestRunWithRuntimeJSONProbe(t *testing.T) {
 	}
 	if result.Server != "example.com" || result.LatencyMs != 12 {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestRunWithRuntimeJSONPrepareFailure(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	rc := runWithRuntime(
+		[]string{"minecraft-ping", "-j", "does-not-exist.invalid"},
+		&stdout,
+		&stderr,
+		cliRuntime{
+			newContext: func() (context.Context, context.CancelFunc) { return context.WithCancel(context.Background()) },
+			session:    defaultSessionRuntime(),
+			prepare: func(context.Context, cliConfig) (preparedProbe, error) {
+				return nil, errors.New("prepare failed")
+			},
+		},
+	)
+	if rc != 2 {
+		t.Fatalf("rc = %d, want 2", rc)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if stderr.String() != "prepare failed\n" {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
