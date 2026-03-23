@@ -2,10 +2,31 @@
 set -euo pipefail
 
 DIST_DIR="${1:-dist}"
-GORELEASER_BIN="${GORELEASER_BIN:-$(command -v goreleaser || true)}"
 
-if [[ -z "$GORELEASER_BIN" ]]; then
-  echo "goreleaser binary not found in PATH; set GORELEASER_BIN to override" >&2
+resolve_goreleaser() {
+  local candidate=""
+
+  if [[ -n "${GORELEASER_BIN:-}" && -x "${GORELEASER_BIN}" ]]; then
+    printf '%s\n' "${GORELEASER_BIN}"
+    return 0
+  fi
+
+  if candidate="$(command -v goreleaser 2>/dev/null)"; then
+    printf '%s\n' "${candidate}"
+    return 0
+  fi
+
+  candidate="$(go env GOPATH 2>/dev/null)/bin/goreleaser"
+  if [[ -x "${candidate}" ]]; then
+    printf '%s\n' "${candidate}"
+    return 0
+  fi
+
+  return 1
+}
+
+if ! GORELEASER_BIN="$(resolve_goreleaser)"; then
+  echo "goreleaser binary not found in PATH or GOPATH/bin; set GORELEASER_BIN to override" >&2
   exit 1
 fi
 
