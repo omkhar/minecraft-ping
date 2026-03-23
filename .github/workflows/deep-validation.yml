@@ -60,7 +60,7 @@ jobs:
       - name: Install go-mutesting
         run: |
           if [[ ! -x "$(go env GOPATH)/bin/go-mutesting" ]]; then
-            GOTOOLCHAIN=auto go install "github.com/avito-tech/go-mutesting/cmd/go-mutesting@${GO_MUTESTING_VERSION}"
+            GOTOOLCHAIN="$(go env GOVERSION)" go install "github.com/avito-tech/go-mutesting/cmd/go-mutesting@${GO_MUTESTING_VERSION}"
           fi
       - name: Run full mutation suite
         run: '"$(go env GOPATH)/bin/go-mutesting" --config .go-mutesting.yml ./...'
