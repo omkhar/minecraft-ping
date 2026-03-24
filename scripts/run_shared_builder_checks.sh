@@ -11,6 +11,9 @@ the release-path checks there with unique caches, image tags, container names,
 and integration ports.
 
 Environment:
+  SHARED_BUILDER_ENV_FILE         Optional env file loaded before resolving
+                                  shared-builder settings.
+                                  Default: ./.shared-builder.local.env
   SHARED_BUILDER_ROOT              Base directory for per-run worktrees.
                                   Default: $HOME/codex-runs/minecraft-ping
   SHARED_BUILDER_RUN_ID           Override the generated run identifier.
@@ -46,6 +49,12 @@ if [[ -z "${repo_root}" ]]; then
 fi
 
 cd "${repo_root}"
+
+env_file="${SHARED_BUILDER_ENV_FILE:-${repo_root}/.shared-builder.local.env}"
+if [[ -f "${env_file}" ]]; then
+  # shellcheck disable=SC1090
+  . "${env_file}"
+fi
 
 if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo "shared builder checks require a clean checkout; commit or stash changes first" >&2
