@@ -161,6 +161,8 @@ Then run the integration script. Set `CONTAINER_CLI=podman` if you are using Pod
 For packaging changes, also run `scripts/release_archive_smoke.sh dist` after a snapshot build and reproduce the Linux package smoke path described in [docs/development.md](docs/development.md) when your environment supports it.
 If you are changing the release path itself, also run `scripts/release_reproducibility.sh dist` to confirm the snapshot artifacts rebuild identically from a second checkout path.
 
+For heavyweight batch validation on a shared Linux builder, use `scripts/run_shared_builder_checks.sh` instead of running the release-path commands directly in a shared checkout. The maintainer guide in [docs/development.md](docs/development.md) documents the required Docker-compatible socket setup and the isolation model.
+
 ## Release Artifacts
 
 Releases are built from GitHub Actions on signed, annotated tags at the current `main` head.
