@@ -8,4 +8,9 @@ RUN apt-get update \
     unzip \
   && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r builder \
+  && useradd -r -g builder -d /home/builder -m builder
+
 WORKDIR /workspace
+
+USER builder
