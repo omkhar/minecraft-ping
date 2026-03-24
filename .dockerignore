@@ -1,0 +1,6 @@
+.git
+dist
+coverage.out
+report.json
+mcping.log
+.DS_Store

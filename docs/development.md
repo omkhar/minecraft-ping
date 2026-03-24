@@ -129,6 +129,41 @@ This path validates installability and basic execution of the generated `.deb`, 
 It also verifies that the packaged `minecraft-ping(1)` man page is installed.
 The package smoke script also asserts that the shipped binary reports the expected stamped version.
 
+## Shared Builder Hosts
+
+If you want to offload the heavyweight release-path checks to a strong shared Linux box such as `builder@bewear`, use the isolated shared-builder wrapper instead of running the release scripts directly in a shared checkout:
+
+```bash
+scripts/run_shared_builder_checks.sh
+```
+
+What the wrapper does:
+
+- clones the current clean checkout into a unique per-run root under `~/codex-runs/minecraft-ping`
+- builds a dedicated runner image from `docker/build-runner.Dockerfile`
+- runs the heavy validation inside that runner with its own Go caches and tool installs
+- mounts a Docker-compatible socket into the runner so package smoke and container-backed integration still work
+- assigns a unique staging image tag, integration container name, and integration port set for the run
+
+This wrapper is intentionally Linux-host oriented because the runner uses host networking so the inner release integration process can probe the ports published by the daemon-backed staging container.
+
+Useful overrides:
+
+- `SHARED_BUILDER_HOST_CLI`: outer container runtime used to launch the runner, for example `docker` or `podman`
+- `SHARED_BUILDER_SOCKET`: Docker-compatible socket path to mount into the runner
+- `SHARED_BUILDER_PACKAGE_ARCHES`: comma-separated package smoke architectures, for example `amd64` or `amd64,arm64`
+- `SHARED_BUILDER_KEEP_RUN_ROOT=0`: remove the isolated checkout after a successful run
+
+Example with a rootless Podman socket:
+
+```bash
+SHARED_BUILDER_HOST_CLI=podman \
+SHARED_BUILDER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock" \
+scripts/run_shared_builder_checks.sh
+```
+
+The wrapper is meant for batch validation, not for the tight local edit loop and not for final release publication. GitHub Actions remains the only supported path for signed release publishing, provenance, and SBOM uploads.
+
 ## CI Coverage
 
 `Main Verify` currently covers:
