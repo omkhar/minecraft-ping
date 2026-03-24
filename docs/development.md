@@ -131,7 +131,7 @@ The package smoke script also asserts that the shipped binary reports the expect
 
 ## Shared Builder Hosts
 
-If you want to offload the heavyweight release-path checks to a strong shared Linux box such as `builder@bewear`, use the isolated shared-builder wrapper instead of running the release scripts directly in a shared checkout:
+If you want to offload the heavyweight release-path checks to a strong shared Linux box, use the isolated shared-builder wrapper instead of running the release scripts directly in a shared checkout:
 
 ```bash
 scripts/run_shared_builder_checks.sh
@@ -144,15 +144,19 @@ What the wrapper does:
 - runs the heavy validation inside that runner with its own Go caches and tool installs
 - mounts a Docker-compatible socket into the runner so package smoke and container-backed integration still work
 - assigns a unique staging image tag, integration container name, and integration port set for the run
+- automatically loads `./.shared-builder.local.env` when present so host-specific settings can stay local and untracked
 
 This wrapper is intentionally Linux-host oriented because the runner uses host networking so the inner release integration process can probe the ports published by the daemon-backed staging container.
 
 Useful overrides:
 
+- `SHARED_BUILDER_ENV_FILE`: alternate env file to load before resolving shared-builder settings
 - `SHARED_BUILDER_HOST_CLI`: outer container runtime used to launch the runner, for example `docker` or `podman`
 - `SHARED_BUILDER_SOCKET`: Docker-compatible socket path to mount into the runner
 - `SHARED_BUILDER_PACKAGE_ARCHES`: comma-separated package smoke architectures, for example `amd64` or `amd64,arm64`
 - `SHARED_BUILDER_KEEP_RUN_ROOT=0`: remove the isolated checkout after a successful run
+
+If you keep a machine-specific SSH target, socket path, or other shared-builder preferences locally, put them in `./.shared-builder.local.env`. The repository ignores that file.
 
 Example with a rootless Podman socket:
 

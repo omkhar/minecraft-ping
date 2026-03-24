@@ -5,3 +5,4 @@ report.json
 
 mcping.log
 .DS_Store
+.shared-builder.local.env
