@@ -41,7 +41,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Cache Go lint tools
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/go/bin
           key: go-tools-lint-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.ACTIONLINT_VERSION }}-${{ env.STATICCHECK_VERSION }}-${{ env.INEFFASSIGN_VERSION }}-${{ env.GOCRITIC_VERSION }}-${{ env.GOIMPORTS_MODULE_VERSION }}
@@ -128,7 +128,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Cache Go security tools
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/go/bin
           key: go-tools-security-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}-${{ env.GITLEAKS_VERSION }}
