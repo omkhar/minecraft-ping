@@ -41,20 +41,24 @@ func TestSharedBuilderChecksLoadsEnvFileWithoutExecutingIt(t *testing.T) {
 	if err := os.WriteFile(cloneScriptPath, scriptContents, 0o755); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
-	configName := exec.Command("git", "config", "user.name", "Codex Test")
-	configName.Dir = cloneDir
-	if output, err := configName.CombinedOutput(); err != nil {
-		t.Fatalf("git config user.name error = %v: %s", err, output)
-	}
-	configEmail := exec.Command("git", "config", "user.email", "codex@example.invalid")
-	configEmail.Dir = cloneDir
-	if output, err := configEmail.CombinedOutput(); err != nil {
-		t.Fatalf("git config user.email error = %v: %s", err, output)
-	}
-	commitScript := exec.Command("git", "commit", "--quiet", "--no-gpg-sign", "-am", "test current shared builder wrapper")
-	commitScript.Dir = cloneDir
-	if output, err := commitScript.CombinedOutput(); err != nil {
-		t.Fatalf("git commit error = %v: %s", err, output)
+	diffScript := exec.Command("git", "diff", "--quiet", "--", "scripts/run_shared_builder_checks.sh")
+	diffScript.Dir = cloneDir
+	if err := diffScript.Run(); err != nil {
+		configName := exec.Command("git", "config", "user.name", "Codex Test")
+		configName.Dir = cloneDir
+		if output, err := configName.CombinedOutput(); err != nil {
+			t.Fatalf("git config user.name error = %v: %s", err, output)
+		}
+		configEmail := exec.Command("git", "config", "user.email", "codex@example.invalid")
+		configEmail.Dir = cloneDir
+		if output, err := configEmail.CombinedOutput(); err != nil {
+			t.Fatalf("git config user.email error = %v: %s", err, output)
+		}
+		commitScript := exec.Command("git", "commit", "--quiet", "--no-gpg-sign", "-am", "test current shared builder wrapper")
+		commitScript.Dir = cloneDir
+		if output, err := commitScript.CombinedOutput(); err != nil {
+			t.Fatalf("git commit error = %v: %s", err, output)
+		}
 	}
 
 	fakeBinDir := filepath.Join(tempDir, "fake-bin")
