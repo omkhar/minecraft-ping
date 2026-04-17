@@ -115,7 +115,7 @@ func TestParseBedrockStatusResponseRejectsInvalidUTF8(t *testing.T) {
 func TestPrepareBedrockProbeUsesResolvedAddress(t *testing.T) {
 	client := pingClient{
 		resolver: stubBedrockResolver{
-			addrs: []netip.Addr{mustParseAddr(t, "203.0.113.10")},
+			addrs: []netip.Addr{mustParseAddr(t, "8.8.8.8")},
 		},
 	}
 	prepared, err := prepareBedrockProbe(context.Background(), client, targetSpec{
@@ -124,7 +124,7 @@ func TestPrepareBedrockProbeUsesResolvedAddress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareBedrockProbe() error = %v", err)
 	}
-	if prepared.banner(false) != "PING example.com (203.0.113.10) port 19132 [bedrock]:" {
+	if prepared.banner(false) != "PING example.com (8.8.8.8) port 19132 [bedrock]:" {
 		t.Fatalf("banner = %q", prepared.banner(false))
 	}
 }
@@ -132,7 +132,7 @@ func TestPrepareBedrockProbeUsesResolvedAddress(t *testing.T) {
 func TestPrepareBedrockProbeUsesIPv6DefaultPort(t *testing.T) {
 	client := pingClient{
 		resolver: stubBedrockResolver{
-			addrs: []netip.Addr{mustParseAddr(t, "2001:db8::10")},
+			addrs: []netip.Addr{mustParseAddr(t, "2606:4700:4700::1111")},
 		},
 	}
 	prepared, err := prepareBedrockProbe(context.Background(), client, targetSpec{
@@ -143,14 +143,14 @@ func TestPrepareBedrockProbeUsesIPv6DefaultPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepareBedrockProbe() error = %v", err)
 	}
-	if prepared.banner(false) != "PING example.com (2001:db8::10) port 19133 [bedrock]:" {
+	if prepared.banner(false) != "PING example.com (2606:4700:4700::1111) port 19133 [bedrock]:" {
 		t.Fatalf("banner = %q", prepared.banner(false))
 	}
 }
 
 func TestBedrockTargetSpecFromEndpointUsesImplicitIPv6Port(t *testing.T) {
 	target := bedrockTargetSpecFromEndpoint(endpoint{
-		Host: "2001:db8::10",
+		Host: "2606:4700:4700::1111",
 		Port: 19133,
 	}, addressFamily6)
 	if target.PortExplicit {
@@ -191,7 +191,8 @@ func TestPingBedrockServer(t *testing.T) {
 	defer server.Close(t)
 
 	latency, err := ping(newEndpoint(server.addr.Addr().String(), int(server.addr.Port())), 2*time.Second, pingOptions{
-		edition: editionBedrock,
+		allowPrivateAddresses: true,
+		edition:               editionBedrock,
 	})
 	if err != nil {
 		t.Fatalf("ping() error = %v", err)
@@ -209,8 +210,9 @@ func TestPingBedrockServerIPv6(t *testing.T) {
 	defer server.Close(t)
 
 	latency, err := ping(newEndpoint(server.addr.Addr().String(), int(server.addr.Port())), 2*time.Second, pingOptions{
-		addressFamily: addressFamily6,
-		edition:       editionBedrock,
+		addressFamily:         addressFamily6,
+		allowPrivateAddresses: true,
+		edition:               editionBedrock,
 	})
 	if err != nil {
 		t.Fatalf("ping() error = %v", err)
@@ -236,7 +238,9 @@ func TestPrepareBedrockProbeProbesResolvedAddress(t *testing.T) {
 		Host:         "example.com",
 		Port:         int(server.addr.Port()),
 		PortExplicit: true,
-	}, pingOptions{})
+	}, pingOptions{
+		allowPrivateAddresses: true,
+	})
 	if err != nil {
 		t.Fatalf("prepareBedrockProbe() error = %v", err)
 	}
@@ -274,7 +278,8 @@ func TestPrepareBedrockProbeProbesResolvedIPv6ImplicitPort(t *testing.T) {
 	prepared, err := prepareBedrockProbe(context.Background(), client, targetSpec{
 		Host: "example.com",
 	}, pingOptions{
-		addressFamily: addressFamily6,
+		addressFamily:         addressFamily6,
+		allowPrivateAddresses: true,
 	})
 	if err != nil {
 		t.Fatalf("prepareBedrockProbe() error = %v", err)

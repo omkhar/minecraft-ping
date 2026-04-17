@@ -68,7 +68,7 @@ func TestHelperProcess(t *testing.T) {
 	case "version-bad":
 		fmt.Println("minecraft-ping 9.9.9")
 	case "probe-ok":
-		want := []string{"-j", "-W", "1.5", "--bedrock", "-6", "[::1]:19133"}
+		want := []string{"-j", "--allow-private", "-W", "1.5", "--bedrock", "-6", "[::1]:19133"}
 		if strings.Join(forwarded, "\x00") != strings.Join(want, "\x00") {
 			fmt.Fprintf(os.Stderr, "unexpected probe args: %v", forwarded)
 			os.Exit(2)
@@ -345,9 +345,9 @@ func TestExtractZipBinary(t *testing.T) {
 	dir := t.TempDir()
 	archivePath := filepath.Join(dir, "minecraft-ping.zip")
 	createZipArchive(t, archivePath, map[string][]byte{
-		"docs/readme.txt":        []byte("ignore"),
-		"nested/minecraft-ping":  []byte("zip-binary"),
-		"nested/minecraft-ping2": []byte("ignore"),
+		"docs/readme.txt":  []byte("ignore"),
+		"minecraft-ping":   []byte("zip-binary"),
+		"minecraft-ping.1": []byte("ignore"),
 	})
 
 	extracted, err := extractZipBinary(archivePath, dir, "minecraft-ping")
@@ -373,9 +373,9 @@ func TestExtractTarGzBinary(t *testing.T) {
 	dir := t.TempDir()
 	archivePath := filepath.Join(dir, "minecraft-ping.tar.gz")
 	createTarGzArchive(t, archivePath, map[string][]byte{
-		"README.md":            []byte("ignore"),
-		"bin/minecraft-ping":   []byte("tar-binary"),
-		"bin/minecraft-ping.1": []byte("ignore"),
+		"README.md":        []byte("ignore"),
+		"minecraft-ping":   []byte("tar-binary"),
+		"minecraft-ping.1": []byte("ignore"),
 	})
 
 	extracted, err := extractTarGzBinary(archivePath, dir, "minecraft-ping")
@@ -388,6 +388,34 @@ func TestExtractTarGzBinary(t *testing.T) {
 	}
 	if string(data) != "tar-binary" {
 		t.Fatalf("extracted data = %q", data)
+	}
+}
+
+func TestExtractZipBinaryRejectsNestedBinaryPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "minecraft-ping.zip")
+	createZipArchive(t, archivePath, map[string][]byte{
+		"nested/minecraft-ping": []byte("zip-binary"),
+	})
+
+	if _, err := extractZipBinary(archivePath, dir, "minecraft-ping"); err == nil {
+		t.Fatal("extractZipBinary() succeeded, want nested-path rejection")
+	}
+}
+
+func TestExtractTarGzBinaryRejectsNestedBinaryPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "minecraft-ping.tar.gz")
+	createTarGzArchive(t, archivePath, map[string][]byte{
+		"bin/minecraft-ping": []byte("tar-binary"),
+	})
+
+	if _, err := extractTarGzBinary(archivePath, dir, "minecraft-ping"); err == nil {
+		t.Fatal("extractTarGzBinary() succeeded, want nested-path rejection")
 	}
 }
 

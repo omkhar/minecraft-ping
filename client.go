@@ -158,11 +158,16 @@ func (c pingClient) resolveEndpoint(target endpoint, timeout time.Duration) endp
 	return route
 }
 
-func (c pingClient) pingEndpoint(route endpointRoute, timeout time.Duration, _ ...bool) (int, error) {
+func (c pingClient) pingEndpoint(route endpointRoute, timeout time.Duration, allowPrivate ...bool) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	candidates, err := c.withDefaults().resolveDialCandidates(ctx, route.Dial, pingOptions{})
+	options := pingOptions{}
+	if len(allowPrivate) > 0 && allowPrivate[0] {
+		options.allowPrivateAddresses = true
+	}
+
+	candidates, err := c.withDefaults().resolveDialCandidates(ctx, route.Dial, options)
 	if err != nil {
 		return 0, err
 	}
@@ -178,11 +183,13 @@ func (c pingClient) pingEndpoint(route endpointRoute, timeout time.Duration, _ .
 	return latencyMs, nil
 }
 
-func (c pingClient) dialMinecraftTCP(target endpoint, timeout time.Duration, _ bool) (net.Conn, error) {
+func (c pingClient) dialMinecraftTCP(target endpoint, timeout time.Duration, allowPrivate bool) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	return c.withDefaults().dialMinecraftTCPContext(ctx, target, pingOptions{})
+	return c.withDefaults().dialMinecraftTCPContext(ctx, target, pingOptions{
+		allowPrivateAddresses: allowPrivate,
+	})
 }
 
 func (c pingClient) dialMinecraftTCPContext(ctx context.Context, target endpoint, options pingOptions) (net.Conn, error) {

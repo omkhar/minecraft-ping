@@ -59,6 +59,7 @@ type rawCLIConfig struct {
 	timestamp    bool
 	numeric      bool
 	json         bool
+	allowPrivate bool
 	showHelp     bool
 	showVersion  bool
 }
@@ -94,6 +95,7 @@ Options:
   -D                    print unix timestamp before each output line
   -n                    numeric output only
   -j                    JSON output (single probe)
+  --allow-private       allow private, loopback, and local-only IP targets
   -V, --version         print version and exit
   -h, --help            show help
   --edition kind        java or bedrock
@@ -196,6 +198,12 @@ func consumeLongFlag(raw rawCLIConfig, arg string, args []string, index *int) (r
 			return raw, false
 		}
 		raw.javaAlias = true
+		return raw, true
+	case "--allow-private":
+		if hasInlineValue {
+			return raw, false
+		}
+		raw.allowPrivate = true
 		return raw, true
 	case "--bedrock":
 		if hasInlineValue {
@@ -360,6 +368,7 @@ func normalizeCLIConfig(raw rawCLIConfig) (cliConfig, parseStatus) {
 	cfg.Timestamp = raw.timestamp
 	cfg.Numeric = raw.numeric
 	cfg.JSON = raw.json
+	cfg.Options.allowPrivateAddresses = raw.allowPrivate
 
 	if cfg.JSON && (cfg.Count > 0 || raw.interval != "" || raw.deadline != "" || cfg.Quiet || cfg.Timestamp) {
 		return cliConfig{}, parseStatusInvalid

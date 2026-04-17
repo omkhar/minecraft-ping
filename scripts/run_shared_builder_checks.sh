@@ -50,15 +50,46 @@ fi
 
 cd "${repo_root}"
 
-env_file="${SHARED_BUILDER_ENV_FILE:-${repo_root}/.shared-builder.local.env}"
-if [[ -f "${env_file}" ]]; then
-  # shellcheck disable=SC1090
-  . "${env_file}"
-fi
+load_env_file() {
+  local env_path="$1"
+  local line key value
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    case "${line}" in
+      ''|\#*)
+        continue
+        ;;
+    esac
+
+    if [[ ! "${line}" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      echo "invalid shared builder env entry: ${line}" >&2
+      exit 1
+    fi
+
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+
+    if [[ "${value}" =~ ^\"(.*)\"$ ]]; then
+      value="${BASH_REMATCH[1]}"
+    elif [[ "${value}" =~ ^\'(.*)\'$ ]]; then
+      value="${BASH_REMATCH[1]}"
+    fi
+
+    printf -v "${key}" '%s' "${value}"
+    export "${key}"
+  done < "${env_path}"
+}
 
 if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo "shared builder checks require a clean checkout; commit or stash changes first" >&2
   exit 1
+fi
+
+env_file="${SHARED_BUILDER_ENV_FILE:-${repo_root}/.shared-builder.local.env}"
+if [[ -f "${env_file}" ]]; then
+  load_env_file "${env_file}"
 fi
 
 host_cli="${SHARED_BUILDER_HOST_CLI:-${CONTAINER_CLI:-docker}}"

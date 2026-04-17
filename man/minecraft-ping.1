@@ -1,4 +1,4 @@
-.TH MINECRAFT-PING 1 "2026-03-22" "minecraft-ping" "User Commands"
+.TH MINECRAFT-PING 1 "2026-04-17" "minecraft-ping" "User Commands"
 .SH NAME
 minecraft-ping \- measure Minecraft server latency with ping-style ergonomics
 .SH SYNOPSIS
@@ -61,6 +61,10 @@ Use numeric output only.
 .B -j
 Emit a single JSON probe result.
 This mode is intended for scripts and automation.
+.TP
+.B --allow-private
+Allow loopback, private, link-local, and documentation-only IP targets.
+Use this only when you intentionally want to probe a local or private host.
 .TP
 .BR -V ", " --version
 Print the version and exit.
@@ -145,6 +149,7 @@ minecraft-ping -c 3 mc.example.com
 minecraft-ping --bedrock play.example.com
 minecraft-ping --bedrock -6 2001:db8::20
 minecraft-ping --bedrock play.example.com:19133
+minecraft-ping --allow-private 127.0.0.1:25565
 minecraft-ping -j mc.example.com
 .EE
 .SH PROTOCOL NOTES

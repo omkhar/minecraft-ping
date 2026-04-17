@@ -144,7 +144,7 @@ What the wrapper does:
 - runs the heavy validation inside that runner with its own Go caches and tool installs
 - mounts a Docker-compatible socket into the runner so package smoke and container-backed integration still work
 - assigns a unique staging image tag, integration container name, and integration port set for the run
-- automatically loads `./.shared-builder.local.env` when present so host-specific settings can stay local and untracked
+- reads `KEY=VALUE` overrides from `./.shared-builder.local.env` when present so host-specific settings can stay local and untracked without executing shell code
 
 This wrapper is intentionally Linux-host oriented because the runner uses host networking so the inner release integration process can probe the ports published by the daemon-backed staging container.
 

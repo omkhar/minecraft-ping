@@ -72,12 +72,15 @@ func TestParseCLIConfigDefaultJava(t *testing.T) {
 }
 
 func TestParseCLIConfigBedrockFlags(t *testing.T) {
-	cfg, status := parseCLIConfig([]string{"--bedrock", "-6", "-c", "3", "-i", "0.5", "-w", "2", "-W", "1.5", "[2001:db8::10]:19133"})
+	cfg, status := parseCLIConfig([]string{"--bedrock", "--allow-private", "-6", "-c", "3", "-i", "0.5", "-w", "2", "-W", "1.5", "[2001:db8::10]:19133"})
 	if status != parseStatusOK {
 		t.Fatalf("parseCLIConfig() status = %v", status)
 	}
 	if cfg.Edition != editionBedrock {
 		t.Fatalf("Edition = %v, want bedrock", cfg.Edition)
+	}
+	if !cfg.Options.allowPrivateAddresses {
+		t.Fatal("allowPrivateAddresses = false, want true")
 	}
 	if cfg.Options.addressFamily != addressFamily6 {
 		t.Fatalf("addressFamily = %v, want IPv6", cfg.Options.addressFamily)
@@ -109,6 +112,7 @@ func TestParseCLIConfigRejectsInvalidInputs(t *testing.T) {
 		{"--edition", "", "example.com"},
 		{"--edition=", "example.com"},
 		{"--java=bedrock", "example.com"},
+		{"--allow-private=wat", "example.com"},
 		{"--bedrock=java", "example.com"},
 		{"--help=wat"},
 		{"--version=wat"},

@@ -51,7 +51,7 @@ func newBedrockClient() pingClient {
 
 func prepareBedrockProbe(ctx context.Context, client pingClient, target targetSpec, options pingOptions) (preparedProbe, error) {
 	client = client.withDefaults()
-	candidates, err := client.resolveBedrockCandidates(ctx, target, options.addressFamily)
+	candidates, err := client.resolveBedrockCandidates(ctx, target, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve bedrock server %s: %w", target.Host, err)
 	}
@@ -103,11 +103,9 @@ func (p *bedrockPreparedProbe) probe(ctx context.Context, timeout time.Duration)
 func pingBedrock(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
 	client := newPingClient().withDefaults()
 	targetSpec := bedrockTargetSpecFromEndpoint(target, options.addressFamily)
+	options.edition = editionBedrock
 
-	request, err := newPingRequest(targetSpec, timeout, pingOptions{
-		addressFamily: options.addressFamily,
-		edition:       editionBedrock,
-	})
+	request, err := newPingRequest(targetSpec, timeout, options)
 	if err != nil {
 		return 0, err
 	}
@@ -115,10 +113,7 @@ func pingBedrock(target endpoint, timeout time.Duration, options pingOptions) (i
 	ctx, cancel := context.WithTimeout(context.Background(), request.timeout)
 	defer cancel()
 
-	prepared, err := prepareBedrockProbe(ctx, client, newTargetSpec(request.target.Host, request.target.Port, request.explicitPort), pingOptions{
-		addressFamily: request.options.addressFamily,
-		edition:       editionBedrock,
-	})
+	prepared, err := prepareBedrockProbe(ctx, client, newTargetSpec(request.target.Host, request.target.Port, request.explicitPort), request.options)
 	if err != nil {
 		return 0, err
 	}
@@ -147,19 +142,22 @@ func bedrockTargetSpecFromEndpoint(target endpoint, family addressFamily) target
 	return newTargetSpec(target.Host, target.Port, explicitPort)
 }
 
-func (c pingClient) resolveBedrockCandidates(ctx context.Context, target targetSpec, family addressFamily) ([]dialCandidate, error) {
+func (c pingClient) resolveBedrockCandidates(ctx context.Context, target targetSpec, options pingOptions) ([]dialCandidate, error) {
 	c = c.withDefaults()
 
 	if err := target.validate(); err != nil {
 		return nil, err
 	}
-	if err := family.validate(); err != nil {
+	if err := options.addressFamily.validate(); err != nil {
 		return nil, err
 	}
 
 	if parsed, ok := target.literalIP(); ok {
-		if !family.matches(parsed) {
-			return nil, fmt.Errorf("%s is an %s address but %s was requested", target.Host, addressFamilyForAddr(parsed), family.forcedFlag())
+		if !options.addressFamily.matches(parsed) {
+			return nil, fmt.Errorf("%s is an %s address but %s was requested", target.Host, addressFamilyForAddr(parsed), options.addressFamily.forcedFlag())
+		}
+		if !options.allowPrivateAddresses && isNonPublicAddr(parsed) {
+			return nil, fmt.Errorf("refusing to connect to non-public address %s (pass --allow-private to override)", target.Host)
 		}
 
 		port, err := toUint16(target.portForAddr(parsed, editionBedrock))
@@ -171,11 +169,11 @@ func (c pingClient) resolveBedrockCandidates(ctx context.Context, target targetS
 		}}, nil
 	}
 
-	addrs, err := c.resolver.LookupNetIP(ctx, family.resolverNetwork(), target.Host)
+	addrs, err := c.resolver.LookupNetIP(ctx, options.addressFamily.resolverNetwork(), target.Host)
 	if err != nil {
 		return nil, err
 	}
-	return dialCandidatesForResolvedIPsByAddr(target.Host, addrs, family, func(addr netip.Addr) uint16 {
+	return dialCandidatesForResolvedIPsByAddr(target.Host, addrs, options.addressFamily, options.allowPrivateAddresses, func(addr netip.Addr) uint16 {
 		port, _ := toUint16(target.portForAddr(addr, editionBedrock))
 		return port
 	})
