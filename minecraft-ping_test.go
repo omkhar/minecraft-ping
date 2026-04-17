@@ -26,12 +26,14 @@ func TestPingServer(t *testing.T) {
 		name    string
 		target  endpoint
 		timeout time.Duration
+		options pingOptions
 		wantErr bool
 	}{
 		{
 			name:    "Valid server and port",
 			target:  server.Endpoint(),
 			timeout: 5 * time.Second,
+			options: pingOptions{allowPrivateAddresses: true},
 			wantErr: false,
 		},
 		{
@@ -56,19 +58,21 @@ func TestPingServer(t *testing.T) {
 			name:    "Invalid timeout",
 			target:  server.Endpoint(),
 			timeout: -1 * time.Second,
+			options: pingOptions{allowPrivateAddresses: true},
 			wantErr: true,
 		},
 		{
 			name:    "Invalid timeout zero",
 			target:  server.Endpoint(),
 			timeout: 0,
+			options: pingOptions{allowPrivateAddresses: true},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			latency, err := ping(tt.target, tt.timeout, pingOptions{})
+			latency, err := ping(tt.target, tt.timeout, tt.options)
 
 			if tt.wantErr {
 				if err == nil {
@@ -107,7 +111,7 @@ func TestPingServerMalformedStatusPacket(t *testing.T) {
 	})
 	defer server.Close()
 
-	_, err := ping(server.Endpoint(), 2*time.Second, pingOptions{})
+	_, err := ping(server.Endpoint(), 2*time.Second, pingOptions{allowPrivateAddresses: true})
 	if err == nil {
 		t.Fatal("ping() expected malformed status packet error but got nil")
 	}
@@ -135,22 +139,22 @@ func TestPingServerPongMismatch(t *testing.T) {
 	})
 	defer server.Close()
 
-	_, err := ping(server.Endpoint(), 2*time.Second, pingOptions{})
+	_, err := ping(server.Endpoint(), 2*time.Second, pingOptions{allowPrivateAddresses: true})
 	if err == nil {
 		t.Fatal("ping() expected pong mismatch error but got nil")
 	}
 }
 
-func TestPingServerAllowsLoopbackAddressByDefault(t *testing.T) {
+func TestPingServerRejectsLoopbackAddressByDefault(t *testing.T) {
 	server := startFakeMinecraftServer(t, statusPongScript(validStatusJSON, 0))
 	defer server.Close()
 
-	latency, err := ping(server.Endpoint(), 2*time.Second, pingOptions{})
-	if err != nil {
-		t.Fatalf("ping() unexpected error: %v", err)
+	_, err := ping(server.Endpoint(), 2*time.Second, pingOptions{})
+	if err == nil {
+		t.Fatal("ping() expected non-public address rejection but got nil")
 	}
-	if latency <= 0 {
-		t.Fatalf("ping() got invalid latency: %d", latency)
+	if !strings.Contains(err.Error(), "non-public address") {
+		t.Fatalf("ping() error = %q, want non-public address rejection", err.Error())
 	}
 }
 
@@ -201,7 +205,8 @@ func TestPingServerWithOptionsAllowsLoopbackAddress(t *testing.T) {
 	defer server.Close()
 
 	latency, err := ping(server.Endpoint(), 2*time.Second, pingOptions{
-		addressFamily: addressFamily4,
+		addressFamily:         addressFamily4,
+		allowPrivateAddresses: true,
 	})
 	if err != nil {
 		t.Fatalf("ping() unexpected error: %v", err)
@@ -215,7 +220,9 @@ func TestPingEndpointWithOptionsAllowsLoopbackAddress(t *testing.T) {
 	server := startFakeMinecraftServer(t, statusPongScript(validStatusJSON, 10*time.Millisecond))
 	defer server.Close()
 
-	latency, err := ping(server.Endpoint(), 2*time.Second, pingOptions{})
+	latency, err := ping(server.Endpoint(), 2*time.Second, pingOptions{
+		allowPrivateAddresses: true,
+	})
 	if err != nil {
 		t.Fatalf("ping() unexpected error: %v", err)
 	}
@@ -384,7 +391,7 @@ func TestResolveEndpointFallsBackWhenSRVUnavailable(t *testing.T) {
 	}
 }
 
-func TestDialMinecraftTCPIncludesLoopbackCandidates(t *testing.T) {
+func TestDialMinecraftTCPSkipsNonPublicCandidatesByDefault(t *testing.T) {
 	successConn, peer := net.Pipe()
 	defer peer.Close()
 
@@ -411,12 +418,44 @@ func TestDialMinecraftTCPIncludesLoopbackCandidates(t *testing.T) {
 	}
 	_ = conn.Close()
 
-	if strings.Join(dialer.attempts, ",") != "127.0.0.1:25565,8.8.8.8:25565" {
-		t.Fatalf("dial attempts = %v, want loopback and public candidates", dialer.attempts)
+	if strings.Join(dialer.attempts, ",") != "8.8.8.8:25565" {
+		t.Fatalf("dial attempts = %v, want only public candidates", dialer.attempts)
 	}
 }
 
-func TestDialMinecraftTCPReturnsJoinedCandidateErrors(t *testing.T) {
+func TestDialMinecraftTCPAllowsNonPublicCandidatesWithOptIn(t *testing.T) {
+	successConn, peer := net.Pipe()
+	defer peer.Close()
+
+	dialer := &stubDialer{
+		results: map[string]dialResult{
+			"8.8.8.8:25565": {conn: successConn},
+		},
+		defaultErr: errors.New("unexpected dial"),
+	}
+	client := pingClient{
+		resolver: &stubResolver{
+			ipAddrs: []netip.Addr{
+				mustAddr("127.0.0.1"),
+				mustAddr("10.0.0.8"),
+				mustAddr("8.8.8.8"),
+			},
+		},
+		dialContext: dialer.DialContext,
+	}
+
+	conn, err := client.withDefaults().dialMinecraftTCP(newEndpoint("mc.example.com", defaultMinecraftPort), 2*time.Second, true)
+	if err != nil {
+		t.Fatalf("dialMinecraftTCP() error: %v", err)
+	}
+	_ = conn.Close()
+
+	if strings.Join(dialer.attempts, ",") != "127.0.0.1:25565,10.0.0.8:25565,8.8.8.8:25565" {
+		t.Fatalf("dial attempts = %v, want private and public candidates", dialer.attempts)
+	}
+}
+
+func TestDialMinecraftTCPRejectsHostsThatResolveOnlyToNonPublicAddresses(t *testing.T) {
 	client := pingClient{
 		resolver: &stubResolver{
 			ipAddrs: []netip.Addr{
@@ -430,7 +469,7 @@ func TestDialMinecraftTCPReturnsJoinedCandidateErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("dialMinecraftTCP() expected error")
 	}
-	if !strings.Contains(err.Error(), "127.0.0.1:25565") || !strings.Contains(err.Error(), "10.0.0.8:25565") {
+	if !strings.Contains(err.Error(), "resolved only to non-public addresses") {
 		t.Fatalf("dialMinecraftTCP() error = %v", err)
 	}
 }
@@ -1116,7 +1155,9 @@ func TestDefaultPingUsesEndpoint(t *testing.T) {
 	server := startFakeMinecraftServer(t, statusPongScript(validStatusJSON, 0))
 	defer server.Close()
 
-	latency, err := ping(server.Endpoint(), 2*time.Second, pingOptions{})
+	latency, err := ping(server.Endpoint(), 2*time.Second, pingOptions{
+		allowPrivateAddresses: true,
+	})
 	if err != nil {
 		t.Fatalf("ping() error: %v", err)
 	}

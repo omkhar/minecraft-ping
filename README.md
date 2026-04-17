@@ -55,6 +55,9 @@ minecraft-ping --bedrock -6 2001:db8::20
 # Explicit port
 minecraft-ping --bedrock play.example.com:19133
 
+# Local or private target
+minecraft-ping --allow-private 127.0.0.1:25565
+
 # Single JSON probe
 minecraft-ping -j mc.example.com
 ```
@@ -71,6 +74,7 @@ minecraft-ping -j mc.example.com
 - `-D`: prefix live reply lines with a Unix timestamp
 - `-n`: numeric output only
 - `-j`: emit a single JSON probe result
+- `--allow-private`: allow loopback, private, link-local, and documentation-only IP targets
 - `-V`, `--version`: print version and exit
 - `-h`, `--help`: print help and exit
 - `--edition java|bedrock`: select the Minecraft edition
@@ -81,6 +85,7 @@ Notes:
 
 - `-i`, `-w`, and `-W` accept positive seconds and may be fractional, for example `0.5`.
 - `-W` must be less than or equal to `30` seconds.
+- By default, the CLI rejects loopback, RFC1918, ULA, link-local, and documentation-only IP addresses. Pass `--allow-private` only when you intentionally want to probe a local or private host.
 - `-j` is incompatible with `-c`, `-i`, `-w`, `-q`, and `-D`.
 - Invalid argv prints the help screen and exits with status `2`.
 

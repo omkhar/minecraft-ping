@@ -37,6 +37,9 @@ func dialCandidateForLiteralIP(target endpoint, options pingOptions) ([]dialCand
 	if !options.addressFamily.matches(addr) {
 		return nil, fmt.Errorf("%s is an %s address but %s was requested", target.Host, addressFamilyForAddr(addr), options.addressFamily.forcedFlag())
 	}
+	if !options.allowPrivateAddresses && isNonPublicAddr(addr) {
+		return nil, fmt.Errorf("refusing to connect to non-public address %s (pass --allow-private to override)", target.Host)
+	}
 
 	port, err := target.uint16Port()
 	if err != nil {
@@ -49,17 +52,19 @@ func dialCandidateForLiteralIP(target endpoint, options pingOptions) ([]dialCand
 }
 
 func dialCandidatesForResolvedIPs(host string, port uint16, addrs []netip.Addr, options pingOptions) ([]dialCandidate, error) {
-	return dialCandidatesForResolvedIPsByAddr(host, addrs, options.addressFamily, func(netip.Addr) uint16 {
+	return dialCandidatesForResolvedIPsByAddr(host, addrs, options.addressFamily, options.allowPrivateAddresses, func(netip.Addr) uint16 {
 		return port
 	})
 }
 
-func dialCandidatesForResolvedIPsByAddr(host string, addrs []netip.Addr, family addressFamily, portForAddr func(netip.Addr) uint16) ([]dialCandidate, error) {
+func dialCandidatesForResolvedIPsByAddr(host string, addrs []netip.Addr, family addressFamily, allowPrivateAddresses bool, portForAddr func(netip.Addr) uint16) ([]dialCandidate, error) {
 	if len(addrs) == 0 {
 		return nil, fmt.Errorf("no addresses resolved for %s", host)
 	}
 
 	filtered := make([]netip.Addr, 0, len(addrs))
+	matchedFamily := false
+	filteredNonPublic := false
 	for _, addr := range addrs {
 		addr = addr.Unmap()
 		if !addr.IsValid() {
@@ -68,12 +73,20 @@ func dialCandidatesForResolvedIPsByAddr(host string, addrs []netip.Addr, family 
 		if !family.matches(addr) {
 			continue
 		}
+		matchedFamily = true
+		if !allowPrivateAddresses && isNonPublicAddr(addr) {
+			filteredNonPublic = true
+			continue
+		}
 		filtered = append(filtered, addr)
 	}
 
 	candidates := buildDialCandidatesWithPortFunc(filtered, portForAddr)
 	if len(candidates) != 0 {
 		return candidates, nil
+	}
+	if matchedFamily && filteredNonPublic {
+		return nil, fmt.Errorf("resolved only to non-public addresses for %s (pass --allow-private to override)", host)
 	}
 
 	return nil, fmt.Errorf("no dialable addresses resolved for %s", host)

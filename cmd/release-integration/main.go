@@ -406,7 +406,7 @@ func extractZipBinary(archivePath, tempDir, binaryName string) (string, error) {
 	defer targetRoot.Close()
 
 	for _, file := range reader.File {
-		if filepath.Base(file.Name) != binaryName {
+		if file.Name != binaryName {
 			continue
 		}
 		if file.UncompressedSize64 == 0 || file.UncompressedSize64 > uint64(maxExtractedBinarySize) {
@@ -468,7 +468,7 @@ func extractTarGzBinary(archivePath, tempDir, binaryName string) (string, error)
 		if err != nil {
 			return "", fmt.Errorf("read tar header: %w", err)
 		}
-		if filepath.Base(header.Name) != binaryName {
+		if header.Name != binaryName {
 			continue
 		}
 		if header.Size <= 0 || header.Size > maxExtractedBinarySize {
@@ -620,6 +620,7 @@ func runProbe(ctx context.Context, binaryPath string, timeout time.Duration, spe
 
 	args := []string{
 		"-j",
+		"--allow-private",
 		"-W", strconv.FormatFloat(timeout.Seconds(), 'f', -1, 64),
 	}
 	if spec.editionArg != "" {

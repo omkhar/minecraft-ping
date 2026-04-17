@@ -39,12 +39,12 @@ jobs:
         env:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          read -r head_owner is_draft mergeable <<EOF
-          $(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json isDraft,headRepositoryOwner,mergeable --jq '[.headRepositoryOwner.login, (.isDraft | tostring), .mergeable] | @tsv')
+          read -r author_login head_owner is_draft mergeable <<EOF
+          $(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json author,isDraft,headRepositoryOwner,mergeable --jq '[.author.login, .headRepositoryOwner.login, (.isDraft | tostring), .mergeable] | @tsv')
           EOF
 
-          if [[ "${head_owner}" != "${REPO_OWNER}" || "${is_draft}" == "true" || "${mergeable}" != "MERGEABLE" ]]; then
-            echo "Skipping PR ${PR_NUMBER}: only non-draft, mergeable PRs from branches in ${REPO_OWNER} are auto-approved."
+          if [[ "${author_login}" != "dependabot[bot]" || "${head_owner}" != "${REPO_OWNER}" || "${is_draft}" == "true" || "${mergeable}" != "MERGEABLE" ]]; then
+            echo "Skipping PR ${PR_NUMBER}: only Dependabot-authored, non-draft, mergeable PRs from branches in ${REPO_OWNER} are auto-approved."
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

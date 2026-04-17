@@ -23,8 +23,33 @@ const (
 )
 
 type pingOptions struct {
-	addressFamily addressFamily
-	edition       edition
+	addressFamily         addressFamily
+	allowPrivateAddresses bool
+	edition               edition
+}
+
+var nonPublicIPPrefixes = []netip.Prefix{
+	mustParsePrefix("0.0.0.0/8"),
+	mustParsePrefix("10.0.0.0/8"),
+	mustParsePrefix("100.64.0.0/10"),
+	mustParsePrefix("127.0.0.0/8"),
+	mustParsePrefix("169.254.0.0/16"),
+	mustParsePrefix("172.16.0.0/12"),
+	mustParsePrefix("192.0.0.0/24"),
+	mustParsePrefix("192.0.2.0/24"),
+	mustParsePrefix("192.168.0.0/16"),
+	mustParsePrefix("198.18.0.0/15"),
+	mustParsePrefix("198.51.100.0/24"),
+	mustParsePrefix("203.0.113.0/24"),
+	mustParsePrefix("224.0.0.0/4"),
+	mustParsePrefix("240.0.0.0/4"),
+	mustParsePrefix("::/128"),
+	mustParsePrefix("::1/128"),
+	mustParsePrefix("100::/64"),
+	mustParsePrefix("2001:db8::/32"),
+	mustParsePrefix("fc00::/7"),
+	mustParsePrefix("fe80::/10"),
+	mustParsePrefix("ff00::/8"),
 }
 
 type endpoint struct {
@@ -187,4 +212,28 @@ func toUint16(value int) (uint16, error) {
 		return 0, fmt.Errorf("value %d is out of uint16 range", value)
 	}
 	return uint16(value), nil // #nosec G115 -- explicit bounds check above
+}
+
+func mustParsePrefix(raw string) netip.Prefix {
+	prefix, err := netip.ParsePrefix(raw)
+	if err != nil {
+		panic(err)
+	}
+
+	return prefix
+}
+
+func isNonPublicAddr(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	if !addr.IsValid() {
+		return true
+	}
+
+	for _, prefix := range nonPublicIPPrefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+
+	return false
 }

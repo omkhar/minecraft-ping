@@ -14,8 +14,8 @@ func TestPrepareJavaProbeMultipleCandidatesDefersDisplayAddressUntilSuccess(t *t
 		pingClient{
 			resolver: &stubResolver{
 				ipAddrs: []netip.Addr{
-					mustParseAddr(t, "2001:db8::10"),
-					mustParseAddr(t, "203.0.113.10"),
+					mustParseAddr(t, "2606:4700:4700::1111"),
+					mustParseAddr(t, "8.8.8.8"),
 				},
 			},
 		},
@@ -33,8 +33,8 @@ func TestPrepareJavaProbeMultipleCandidatesDefersDisplayAddressUntilSuccess(t *t
 		t.Fatalf("summaryLabel(true) before success = %q", got)
 	}
 
-	prepared.observeSample(probeSample{remote: mustAddrPort(t, "203.0.113.10:25565")})
-	if got := prepared.summaryLabel(true); got != "203.0.113.10" {
+	prepared.observeSample(probeSample{remote: mustAddrPort(t, "8.8.8.8:25565")})
+	if got := prepared.summaryLabel(true); got != "8.8.8.8" {
 		t.Fatalf("summaryLabel(true) after success = %q", got)
 	}
 }
@@ -47,8 +47,8 @@ func TestPrepareBedrockProbeMultipleCandidatesDefersDisplayAddressUntilSuccess(t
 		pingClient{
 			resolver: stubBedrockResolver{
 				addrs: []netip.Addr{
-					mustParseAddr(t, "2001:db8::10"),
-					mustParseAddr(t, "203.0.113.10"),
+					mustParseAddr(t, "2606:4700:4700::1111"),
+					mustParseAddr(t, "8.8.8.8"),
 				},
 			},
 		},
@@ -66,8 +66,8 @@ func TestPrepareBedrockProbeMultipleCandidatesDefersDisplayAddressUntilSuccess(t
 		t.Fatalf("summaryLabel(true) before success = %q", got)
 	}
 
-	prepared.observeSample(probeSample{remote: mustAddrPort(t, "203.0.113.10:19132")})
-	if got := prepared.summaryLabel(true); got != "203.0.113.10" {
+	prepared.observeSample(probeSample{remote: mustAddrPort(t, "8.8.8.8:19132")})
+	if got := prepared.summaryLabel(true); got != "8.8.8.8" {
 		t.Fatalf("summaryLabel(true) after success = %q", got)
 	}
 }
