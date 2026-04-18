@@ -7,8 +7,11 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
-- Added launch-readiness documentation, governance, support routing, release verification guidance, and contributor entrypoints.
-- Tightened release-path validation, workflow coverage, and Go-idiomatic cleanup ahead of public launch.
+## v2.0.6 - 2026-04-18
+
+- Added launch-readiness documentation, governance, support routing, release verification guidance, contributor entrypoints, and portable agent guidance for ongoing repository maintenance.
+- Tightened release-path validation, workflow coverage, public-repo hygiene checks, and Go-idiomatic cleanup ahead of public launch.
+- Fixed staging server shutdown ordering so listener cleanup happens before accept-loop waits on early serve errors.
 
 ## v2.0.5 - 2026-04-17
 
