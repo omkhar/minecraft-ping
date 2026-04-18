@@ -2,6 +2,7 @@ name: Label Pull Requests
 
 on:
   pull_request_target:
+    # zizmor: ignore[dangerous-triggers] This workflow applies labels through the GitHub API only and never checks out or executes PR code.
     branches: ["main"]
 
 permissions: {}

@@ -38,7 +38,7 @@ make agents-sync
 make agents-verify
 ```
 
-`make agents-verify` always checks the generated agent files against the canonical sources. When the `codex`, `claude`, and `gemini` CLIs are installed locally, it also runs the same structured smoke prompt against each one and requires them to return the same repo contract. Trusted PR runs and `Main Verify` enforce that live smoke in GitHub Actions once `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` are configured for the repository. Fork PR workflows keep the live smoke structural-only so secrets are not exposed to untrusted code.
+`make agents-verify` always checks the generated agent files against the canonical sources. When the `codex`, `claude`, and `gemini` CLIs are installed locally, it also runs the same structured smoke prompt against each one and requires them to return the same repo contract. Trusted PR runs and `Main Verify` enforce that live smoke in GitHub Actions once `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` are configured for the repository. Those workflow-only secrets stay scoped to the dedicated `agent-smoke` environment. Fork PR workflows keep the live smoke structural-only so secrets are not exposed to untrusted code.
 
 If you have `deadcode` installed locally, run it before large refactors or cleanup-heavy changes:
 

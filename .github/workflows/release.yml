@@ -13,7 +13,7 @@ permissions: {}
 
 env:
   SYFT_VERSION: v1.42.3
-  REQUIRED_MAIN_VERIFY_CONTEXTS: ci-lint,ci-security,ci-test,ci-test-platforms (linux-amd64),ci-test-platforms (linux-arm64),ci-test-platforms (macos-amd64),ci-test-platforms (macos-arm64),ci-test-platforms (windows-amd64),ci-test-platforms (windows-arm64),release-snapshot,release-linux-package-smoke (amd64),release-linux-package-smoke (arm64),release-binary-integration (linux-amd64),release-binary-integration (linux-arm64),release-binary-integration (macos-amd64),release-binary-integration (macos-arm64),release-binary-integration (windows-amd64),release-binary-integration (windows-arm64)
+  REQUIRED_MAIN_VERIFY_CONTEXTS: ci-agent-smoke,ci-lint,ci-security,ci-test,ci-test-platforms (linux-amd64),ci-test-platforms (linux-arm64),ci-test-platforms (macos-amd64),ci-test-platforms (macos-arm64),ci-test-platforms (windows-amd64),ci-test-platforms (windows-arm64),release-snapshot,release-linux-package-smoke (amd64),release-linux-package-smoke (arm64),release-binary-integration (linux-amd64),release-binary-integration (linux-arm64),release-binary-integration (macos-amd64),release-binary-integration (macos-arm64),release-binary-integration (windows-amd64),release-binary-integration (windows-arm64)
 
 jobs:
   release:
