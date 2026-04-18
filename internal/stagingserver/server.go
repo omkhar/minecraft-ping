@@ -125,15 +125,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		}(packetListener)
 	}
 
-	defer closeAll()
-	defer acceptWG.Wait()
-
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-errCh:
-		return err
-	}
+	return waitForServeExit(ctx, errCh, closeAll, &acceptWG)
 }
 
 func (cfg Config) withDefaults() Config {
@@ -165,6 +157,18 @@ func closeListeners(listeners []net.Listener) {
 func closePacketListeners(listeners []net.PacketConn) {
 	for _, listener := range listeners {
 		_ = listener.Close()
+	}
+}
+
+func waitForServeExit(ctx context.Context, errCh <-chan error, closeAll func(), acceptWG *sync.WaitGroup) error {
+	defer acceptWG.Wait()
+	defer closeAll()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
 	}
 }
 

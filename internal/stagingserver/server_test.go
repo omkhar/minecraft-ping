@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -338,6 +339,44 @@ func TestServeRejectsInvalidBedrockStatus(t *testing.T) {
 	})
 	if err == nil || err.Error() != "bedrock status must start with MCPE;" {
 		t.Fatalf("Serve() error = %v, want invalid bedrock status error", err)
+	}
+}
+
+func TestWaitForServeExitClosesBeforeWaiting(t *testing.T) {
+	t.Parallel()
+
+	listener := newBlockingListener()
+	errCh := make(chan error, 1)
+	sentinel := errors.New("serve failed")
+	errCh <- sentinel
+
+	var acceptWG sync.WaitGroup
+	acceptWG.Add(1)
+	go func() {
+		defer acceptWG.Done()
+		_, _ = listener.Accept()
+	}()
+
+	<-listener.acceptStarted
+
+	done := make(chan error, 1)
+	go func() {
+		done <- waitForServeExit(context.Background(), errCh, func() {
+			_ = listener.Close()
+		}, &acceptWG)
+	}()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, sentinel) {
+			t.Fatalf("waitForServeExit() error = %v, want %v", err, sentinel)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("waitForServeExit() did not close listeners before waiting")
+	}
+
+	if closeCalls := listener.closeCalls.Load(); closeCalls != 1 {
+		t.Fatalf("listener.Close() calls = %d, want 1", closeCalls)
 	}
 }
 
