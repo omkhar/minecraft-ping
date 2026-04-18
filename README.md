@@ -46,27 +46,78 @@ At a glance:
 
 Common examples:
 
+To keep the snippets reproducible, the sample stdout blocks below were captured against the repository's local staging backend.
+That means the samples show localhost-style targets even when the command example uses a public hostname.
+On a real server, the host label, resolved address, port selection, and latency will differ.
+
 ```bash
 # Java, default port 25565, continuous until Ctrl-C
 minecraft-ping mc.example.com
+#
+# Sample stdout:
+# PING 127.0.0.1 port 25565 [java]:
+# pong from 127.0.0.1:25565: seq=1 time=1.000 ms
+# pong from 127.0.0.1:25565: seq=2 time=1.000 ms
+# ...
 
 # Java, 3 probes
 minecraft-ping -c 3 mc.example.com
+#
+# Sample stdout:
+# PING 127.0.0.1 port 25565 [java]:
+# pong from 127.0.0.1:25565: seq=1 time=1.000 ms
+# pong from 127.0.0.1:25565: seq=2 time=1.000 ms
+# pong from 127.0.0.1:25565: seq=3 time=1.000 ms
+#
+# --- 127.0.0.1 ping statistics ---
+# 3 probes transmitted, 3 received, 0% packet loss, time 2003ms
+# rtt min/avg/max/mdev = 1.000/1.000/1.000/0.000 ms
 
 # Bedrock, default port selected from the resolved address family
 minecraft-ping --bedrock play.example.com
+#
+# Sample stdout:
+# PING 127.0.0.1 port 19132 [bedrock]:
+# pong from 127.0.0.1:19132: seq=1 time=0.151 ms
+# pong from 127.0.0.1:19132: seq=2 time=0.242 ms
+# ...
 
 # Bedrock, default IPv6 port 19133
 minecraft-ping --bedrock -6 2001:db8::20
+#
+# Sample stdout:
+# PING ::1 port 19133 [bedrock]:
+# pong from [::1]:19133: seq=1 time=0.080 ms
+# pong from [::1]:19133: seq=2 time=0.273 ms
+# ...
 
 # Explicit port
-minecraft-ping --bedrock play.example.com:19133
+minecraft-ping --bedrock play.example.com:19132
+#
+# Sample stdout:
+# PING 127.0.0.1 port 19132 [bedrock]:
+# pong from 127.0.0.1:19132: seq=1 time=0.220 ms
+#
+# --- 127.0.0.1 ping statistics ---
+# 1 probes transmitted, 1 received, 0% packet loss, time 0ms
+# rtt min/avg/max/mdev = 0.220/0.220/0.220/0.000 ms
 
 # Local or private target
 minecraft-ping --allow-private 127.0.0.1:25565
+#
+# Sample stdout:
+# PING 127.0.0.1 port 25565 [java]:
+# pong from 127.0.0.1:25565: seq=1 time=1.000 ms
+#
+# --- 127.0.0.1 ping statistics ---
+# 1 probes transmitted, 1 received, 0% packet loss, time 0ms
+# rtt min/avg/max/mdev = 1.000/1.000/1.000/0.000 ms
 
 # Single JSON probe
 minecraft-ping -j mc.example.com
+#
+# Sample stdout:
+# {"server":"127.0.0.1","latency_ms":1}
 ```
 
 ## Key Behavior
