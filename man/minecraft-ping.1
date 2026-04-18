@@ -1,0 +1,178 @@
+.TH MINECRAFT-PING 1 "2026-04-17" "minecraft-ping" "User Commands"
+.SH NAME
+minecraft-ping \- measure Minecraft server latency with ping-style ergonomics
+.SH SYNOPSIS
+.B minecraft-ping
+.RI [ options ] " destination"
+.SH DESCRIPTION
+.B minecraft-ping
+measures Minecraft Java Edition and Bedrock Edition server latency while
+keeping the command-line experience close to Unix
+.BR ping .
+Java Edition is the default.
+Bedrock Edition is selected explicitly with
+.B --bedrock
+or
+.BR "--edition bedrock" .
+.PP
+Text mode runs as a session and prints a summary when the session ends.
+JSON mode performs a single probe and emits one JSON object for scripting.
+.SH OPTIONS
+.TP
+.B -4
+Use IPv4 only.
+.TP
+.B -6
+Use IPv6 only.
+.TP
+.BI "-c " count
+Stop after
+.I count
+probes.
+.TP
+.BI "-i " interval
+Wait
+.I interval
+seconds between probes.
+This value must be positive and may be fractional.
+.TP
+.BI "-w " deadline
+Stop after
+.I deadline
+seconds.
+This value must be positive and may be fractional.
+.TP
+.BI "-W " timeout
+Wait
+.I timeout
+seconds for each probe.
+This value must be positive, may be fractional, and must not exceed 30 seconds.
+.TP
+.B -q
+Quiet mode.
+Suppress per-probe reply lines and print only the banner and summary.
+.TP
+.B -D
+Prefix live reply lines with a Unix timestamp.
+.TP
+.B -n
+Use numeric output only.
+.TP
+.B -j
+Emit a single JSON probe result.
+This mode is intended for scripts and automation.
+.TP
+.B --allow-private
+Allow loopback, private, link-local, and documentation-only IP targets.
+Use this only when you intentionally want to probe a local or private host.
+.TP
+.BR -V ", " --version
+Print the version and exit.
+.TP
+.BR -h ", " --help
+Print help and exit.
+.TP
+.BI "--edition " kind
+Select the Minecraft edition.
+Supported values are
+.B java
+and
+.BR bedrock .
+.TP
+.B --java
+Alias for
+.BR "--edition java" .
+.TP
+.B --bedrock
+Alias for
+.BR "--edition bedrock" .
+.SH DESTINATIONS
+The destination is positional and may be one of:
+.IP \(bu 2
+.I host
+.IP \(bu 2
+.I host:port
+.IP \(bu 2
+.I [ipv6]:port
+.IP \(bu 2
+a bare IPv6 literal such as
+.I 2001:db8::20
+.PP
+Default ports:
+.IP \(bu 2
+Java Edition: 25565
+.IP \(bu 2
+Bedrock Edition over IPv4: 19132
+.IP \(bu 2
+Bedrock Edition over IPv6: 19133
+.PP
+If a port is present in the destination, it always wins.
+.SH JSON MODE
+JSON mode emits one object to standard output:
+.PP
+.EX
+{"server":"mc.example.com","latency_ms":12}
+.EE
+.PP
+The
+.B server
+field contains the destination host.
+The
+.B latency_ms
+field contains the measured latency in whole milliseconds.
+.PP
+The
+.B -j
+option is incompatible with
+.BR -c ,
+.BR -i ,
+.BR -w ,
+.BR -q ,
+and
+.BR -D .
+.SH EXIT STATUS
+.TP
+.B 0
+At least one reply was received, or a JSON probe succeeded.
+.TP
+.B 1
+No replies were received, or a JSON probe reached the probe step and failed.
+.TP
+.B 2
+Invalid argv or a setup or runtime error occurred
+before a meaningful probe completed,
+including JSON prepare or setup failures.
+.SH EXAMPLES
+.EX
+minecraft-ping mc.example.com
+minecraft-ping -c 3 mc.example.com
+minecraft-ping --bedrock play.example.com
+minecraft-ping --bedrock -6 2001:db8::20
+minecraft-ping --bedrock play.example.com:19133
+minecraft-ping --allow-private 127.0.0.1:25565
+minecraft-ping -j mc.example.com
+.EE
+.SH PROTOCOL NOTES
+.IP \(bu 2
+Java probing uses the Minecraft status and ping/pong handshake over TCP.
+.IP \(bu 2
+Java performs an SRV lookup only when probing
+Java Edition with a hostname and no explicit port.
+.IP \(bu 2
+Bedrock probing uses RakNet unconnected ping/pong over UDP.
+.IP \(bu 2
+The tool does not fake ICMP-only fields such as
+.BR ttl ,
+byte counts, or
+.BR icmp_seq .
+.SH FILES
+.TP
+.I /usr/share/man/man1/minecraft-ping.1
+or
+.IR /usr/share/man/man1/minecraft-ping.1.gz
+Installed man page provided by Linux packages.
+.TP
+.I /usr/share/doc/minecraft-ping/README.md
+Packaged project overview.
+.SH SEE ALSO
+.BR ping (8)
