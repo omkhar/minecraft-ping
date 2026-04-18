@@ -151,9 +151,13 @@ func (c pingClient) resolveBedrockCandidates(ctx context.Context, target targetS
 			return nil, fmt.Errorf("refusing to connect to non-public address %s (pass --allow-private to override)", target.Host)
 		}
 
+		port, err := toUint16(target.portForAddr(parsed, editionBedrock))
+		if err != nil {
+			return nil, fmt.Errorf("derive bedrock port for %s: %w", target.Host, err)
+		}
+
 		return []dialCandidate{{
-			// target.validate guarantees explicit ports are in range, and implicit bedrock ports are constants.
-			address: netip.AddrPortFrom(parsed, uint16(target.portForAddr(parsed, editionBedrock))),
+			address: netip.AddrPortFrom(parsed, port),
 		}}, nil
 	}
 
