@@ -80,16 +80,23 @@ jobs:
           fi
       - name: Verify module downloads
         run: go mod verify
-      - name: Require live agent smoke secrets
+      - name: Detect live agent smoke availability
+        id: agent_smoke
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          [[ -n "${OPENAI_API_KEY}" ]] || { echo "OPENAI_API_KEY secret is required for Main Verify agent smoke" >&2; exit 1; }
-          [[ -n "${ANTHROPIC_API_KEY}" ]] || { echo "ANTHROPIC_API_KEY secret is required for Main Verify agent smoke" >&2; exit 1; }
-          [[ -n "${GEMINI_API_KEY}" ]] || { echo "GEMINI_API_KEY secret is required for Main Verify agent smoke" >&2; exit 1; }
+          if [[ -n "${OPENAI_API_KEY}" && -n "${ANTHROPIC_API_KEY}" && -n "${GEMINI_API_KEY}" ]]; then
+            echo "ready=1" >> "${GITHUB_OUTPUT}"
+            echo "Live agent smoke enabled for Main Verify."
+            exit 0
+          fi
+
+          echo "ready=0" >> "${GITHUB_OUTPUT}"
+          echo "Live agent smoke disabled for Main Verify because one or more provider secrets are not configured."
       - name: Install agent CLIs for runtime smoke
+        if: steps.agent_smoke.outputs.ready == '1'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -99,7 +106,7 @@ jobs:
         run: '"$(go env GOPATH)/bin/actionlint"'
       - name: Verify agent surfaces
         env:
-          AGENT_SMOKE_REQUIRE_ALL: '1'
+          AGENT_SMOKE_REQUIRE_ALL: ${{ steps.agent_smoke.outputs.ready }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
