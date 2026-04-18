@@ -4,7 +4,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-common_prompt="Read the repository instructions for this workspace and reply with exactly one line in this format, with no extra text: <instruction-file>|<always-on-skill-path>|<first-command>|<second-command>|<claude-skill-mirror-dir>|<first-prohibited-item-from-the-do-not-commit-rule>. Use the exact repo-specific values from the canonical instructions."
+common_prompt="Read the repository instructions for this workspace and reply with exactly one line in this format, with no extra text: <instruction-file>|<always-on-skill-path>|<first-standard-change-loop-command>|<second-standard-change-loop-command>|<claude-skill-mirror-dir>|<first-prohibited-item-from-the-do-not-commit-rule>. Use the exact repo-specific values from the canonical instructions."
 expected_contract="AGENTS.md|.agents/skills/minecraft-ping-change-gate/SKILL.md|make verify|make coverage|.claude/skills|machine-specific files"
 
 missing_binary_is_error() {

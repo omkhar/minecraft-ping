@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -1432,7 +1433,16 @@ func TestStartBinaryBackendCleanupKillsProcess(t *testing.T) {
 	}()
 	select {
 	case err := <-waitDone:
-		if err == nil || !strings.Contains(err.Error(), "no child processes") {
+		if err == nil {
+			t.Fatalf("Process.Wait() error = %v, want a reaped-process error after cleanup", err)
+		}
+		if runtime.GOOS == "windows" {
+			if !strings.Contains(err.Error(), "invalid argument") {
+				t.Fatalf("Process.Wait() error = %v, want invalid argument after cleanup reaps the backend on Windows", err)
+			}
+			return
+		}
+		if !strings.Contains(err.Error(), "no child processes") {
 			t.Fatalf("Process.Wait() error = %v, want no child processes after cleanup reaps the backend", err)
 		}
 	case <-time.After(2 * time.Second):
@@ -3037,7 +3047,9 @@ func TestOpenReadOnlyFileErrorPaths(t *testing.T) {
 		if err := os.WriteFile(path, []byte("payload"), 0o600); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
-		releaseRootClose = func(*os.Root) error {
+		defaultRootClose := releaseRootClose
+		releaseRootClose = func(root *os.Root) error {
+			_ = defaultRootClose(root)
 			return errors.New("close root exploded")
 		}
 
@@ -3050,16 +3062,20 @@ func TestOpenReadOnlyFileErrorPaths(t *testing.T) {
 		restore := restoreReleaseHooks()
 		defer restore()
 
+		dir := t.TempDir()
+		path := filepath.Join(dir, "payload.txt")
+
 		rootClosed := 0
 		releaseRootOpen = func(*os.Root, string) (*os.File, error) {
 			return nil, errors.New("open file exploded")
 		}
-		releaseRootClose = func(*os.Root) error {
+		defaultRootClose := releaseRootClose
+		releaseRootClose = func(root *os.Root) error {
 			rootClosed++
-			return nil
+			return defaultRootClose(root)
 		}
 
-		if _, err := openReadOnlyFile("/tmp/payload.txt"); err == nil || !strings.Contains(err.Error(), "open file exploded") {
+		if _, err := openReadOnlyFile(path); err == nil || !strings.Contains(err.Error(), "open file exploded") {
 			t.Fatalf("openReadOnlyFile() error = %v, want file-open failure", err)
 		}
 		if rootClosed != 1 {
@@ -3078,7 +3094,9 @@ func TestOpenReadOnlyFileErrorPaths(t *testing.T) {
 		}
 
 		fileClosed := 0
-		releaseRootClose = func(*os.Root) error {
+		defaultRootClose := releaseRootClose
+		releaseRootClose = func(root *os.Root) error {
+			_ = defaultRootClose(root)
 			return errors.New("close root exploded")
 		}
 		releaseFileClose = func(file *os.File) error {
