@@ -197,9 +197,7 @@ func TestPingBedrockCandidateAgainstFakeServer(t *testing.T) {
 	defer server.Close(t)
 
 	client := pingClient{
-		now: func() time.Time {
-			return time.Now()
-		},
+		now: time.Now,
 	}
 	candidate := dialCandidate{address: server.addr}
 	sample, err := pingBedrockCandidate(context.Background(), client, candidate, 2*time.Second)
