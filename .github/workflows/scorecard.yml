@@ -9,16 +9,20 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   analysis:
     if: github.event.repository.private != true
     name: scorecard
     runs-on: ubuntu-latest
     permissions:
-      actions: read
-      contents: read
-      id-token: write
-      security-events: write
+      actions: read # Read workflow metadata used during Scorecard analysis.
+      contents: read # Read repository contents for Scorecard checks.
+      id-token: write # Mint an OIDC token for Scorecard provenance integration.
+      security-events: write # Upload the Scorecard SARIF report to the Security tab.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
