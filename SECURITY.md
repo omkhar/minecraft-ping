@@ -8,7 +8,10 @@ This repository does not currently maintain long-lived patch branches for older 
 
 ## Reporting A Vulnerability
 
-Please report suspected vulnerabilities privately to `minecraft-ping@omkhar.net`.
+Preferred private reporting paths:
+
+- email `minecraft-ping@omkhar.net`
+- [GitHub private vulnerability reporting](https://github.com/omkhar/minecraft-ping/security/advisories/new)
 
 GitHub private vulnerability reporting should remain enabled so reporters have a structured in-product disclosure path in addition to email.
 

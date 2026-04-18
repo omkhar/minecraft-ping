@@ -3,9 +3,10 @@
 ## Best Path By Topic
 
 - Usage questions, operational questions, and maintainer contact: `minecraft-ping@omkhar.net`
-- Bugs and regressions: open a GitHub issue with the bug report template
-- Feature requests: open a GitHub issue with the feature request template
-- Security vulnerabilities: follow [SECURITY.md](SECURITY.md) and report privately instead of using public issues
+- Bugs and regressions: [open a bug report](https://github.com/omkhar/minecraft-ping/issues/new?template=bug_report.yml)
+- Feature requests: [open a feature request](https://github.com/omkhar/minecraft-ping/issues/new?template=feature_request.yml)
+- Issue chooser: [browse the issue templates](https://github.com/omkhar/minecraft-ping/issues/new/choose)
+- Security vulnerabilities: [open a private security advisory](https://github.com/omkhar/minecraft-ping/security/advisories/new) or follow [SECURITY.md](SECURITY.md)
 
 ## What To Include
 

@@ -5,6 +5,7 @@ This document is the maintainer checklist for cutting a public release.
 ## Before You Tag
 
 1. Confirm the repository is on the latest stable Go patch release you intend to support.
+   In practice, `go.mod` should already be set to that version before you cut the release.
    Check the official release history at `https://go.dev/doc/devel/release`.
 2. Update docs, changelog entries, and any user-visible examples that changed.
 3. Run the local checks appropriate for the scope:

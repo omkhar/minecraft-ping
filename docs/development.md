@@ -5,6 +5,7 @@ This document is the maintainer and contributor on-ramp for local validation and
 ## Prerequisites
 
 - Use the Go toolchain version declared in `go.mod`.
+- Before a release, verify that `go.mod` has already been updated to the latest stable Go patch release you intend to support.
 - For the container-backed integration path, install Docker or Podman.
 - For full local parity checks, use an environment with working IPv4 and IPv6 loopback networking.
 
@@ -38,7 +39,7 @@ make agents-sync
 make agents-verify
 ```
 
-`make agents-verify` always checks the generated agent files against the canonical sources. When the `codex`, `claude`, and `gemini` CLIs are installed locally, it also runs the same structured smoke prompt against each one and requires them to return the same repo contract. Trusted PR runs and `Main Verify` enforce that live smoke in GitHub Actions once `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` are configured for the repository. Those workflow-only secrets stay scoped to the dedicated `agent-smoke` environment. Fork PR workflows keep the live smoke structural-only so secrets are not exposed to untrusted code.
+`make agents-verify` always checks generated-surface drift. When the `codex`, `claude`, and `gemini` CLIs are installed locally, it also runs the structured contract smoke against each one. Trusted PR runs and `Main Verify` enforce the same live smoke in GitHub Actions once the provider API keys are configured for the dedicated `agent-smoke` environment. Fork PR workflows keep the live smoke structural-only so secrets are not exposed to untrusted code.
 
 If you have `deadcode` installed locally, run it before large refactors or cleanup-heavy changes:
 

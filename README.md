@@ -30,13 +30,21 @@ go build -o minecraft-ping .
 Signed release archives and Linux packages are published from tagged releases on [GitHub Releases](https://github.com/omkhar/minecraft-ping/releases).
 Linux packages install the `minecraft-ping(1)` man page, and release archives ship the same source at `man/minecraft-ping.1`.
 
-## Usage
+## Quick Start
 
 ```text
 minecraft-ping [options] destination
 ```
 
-Examples:
+At a glance:
+
+- `--bedrock` or `--edition bedrock`: switch from Java to Bedrock
+- `-c count`: stop after a fixed number of probes
+- `-j`: emit one JSON probe for scripts
+- `-4` or `-6`: force one address family
+- `--allow-private`: permit local or private IP targets
+
+Common examples:
 
 ```bash
 # Java, default port 25565, continuous until Ctrl-C
@@ -61,63 +69,15 @@ minecraft-ping --allow-private 127.0.0.1:25565
 minecraft-ping -j mc.example.com
 ```
 
-## Options
+## Key Behavior
 
-- `-4`: use IPv4 only
-- `-6`: use IPv6 only
-- `-c count`: stop after `count` probes
-- `-i interval`: wait `interval` seconds between probes
-- `-w deadline`: stop after `deadline` seconds
-- `-W timeout`: wait `timeout` seconds for each probe
-- `-q`: quiet mode
-- `-D`: prefix live reply lines with a Unix timestamp
-- `-n`: numeric output only
-- `-j`: emit a single JSON probe result
-- `--allow-private`: allow loopback, private, link-local, and documentation-only IP targets
-- `-V`, `--version`: print version and exit
-- `-h`, `--help`: print help and exit
-- `--edition java|bedrock`: select the Minecraft edition
-- `--java`: alias for `--edition java`
-- `--bedrock`: alias for `--edition bedrock`
-
-Notes:
-
-- `-i`, `-w`, and `-W` accept positive seconds and may be fractional, for example `0.5`.
-- `-W` must be less than or equal to `30` seconds.
+- Java and Bedrock stay explicit. The CLI does not auto-detect editions.
 - By default, the CLI rejects loopback, RFC1918, ULA, link-local, and documentation-only IP addresses. Pass `--allow-private` only when you intentionally want to probe a local or private host.
-- `-j` is incompatible with `-c`, `-i`, `-w`, `-q`, and `-D`.
-- Invalid argv prints the help screen and exits with status `2`.
-
-## Destinations And Default Ports
-
-The destination is positional and may be:
-
-- `host`
-- `host:port`
-- `[ipv6]:port`
-- bare IPv6 literal such as `2001:db8::20`
-
-Default ports:
-
-- Java: `25565`
-- Bedrock over IPv4: `19132`
-- Bedrock over IPv6: `19133`
-
-If a port is present in the destination, it always wins.
-
-## Exit Status
-
-- `0`: at least one reply was received, or a JSON probe succeeded
-- `1`: no replies were received, or a JSON probe reached the probe step and failed
-- `2`: invalid argv or a setup/runtime error occurred before a meaningful probe completed, including JSON prepare/setup failures
-
-## Protocol Behavior
-
-- Java probing uses the Minecraft status and ping/pong handshake over TCP.
-- Java performs an SRV lookup only when probing Java Edition with a hostname and no explicit port.
+- Java probing uses the Minecraft status and ping/pong handshake over TCP and only performs SRV lookup when the target is a hostname with no explicit port.
 - Bedrock probing uses RakNet unconnected ping/pong over UDP.
 - The CLI intentionally does not fake ICMP-only fields such as `ttl`, byte counts, or `icmp_seq`.
-- Bedrock wire-format validation in this repository is based on live `itzg/minecraft-bedrock-server` captures. The Microsoft Script API documentation is not the network probe specification.
+
+For the full flag reference, destination rules, exit status contract, and protocol notes, see [CLI Reference](docs/cli-reference.md).
 
 ## Supported Release Targets
 
@@ -141,37 +101,36 @@ For quick consumer verification instructions, see [Release Verification](docs/re
 ## Support
 
 - Usage questions, operational questions, and maintainer contact: `minecraft-ping@omkhar.net`
-- Bugs and feature requests: open a GitHub issue using the repository templates
-- Security reports: follow [SECURITY.md](SECURITY.md) and do not file a public issue
+- Bug reports: [open a bug report](https://github.com/omkhar/minecraft-ping/issues/new?template=bug_report.yml)
+- Feature requests: [open a feature request](https://github.com/omkhar/minecraft-ping/issues/new?template=feature_request.yml)
+- Security reports: [open a private security advisory](https://github.com/omkhar/minecraft-ping/security/advisories/new) or follow [SECURITY.md](SECURITY.md)
 
 ## Project Documentation
 
-- [Architecture](docs/architecture.md)
-- [Development](docs/development.md)
+Users:
+
+- [CLI Reference](docs/cli-reference.md)
 - [Release Verification](docs/release-verification.md)
-- [Releasing](docs/releasing.md)
-- [Agent Instructions](AGENTS.md)
-- [Contributing](CONTRIBUTING.md)
 - [Support](SUPPORT.md)
-- [Governance](GOVERNANCE.md)
-- [Security](SECURITY.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Changelog](CHANGELOG.md)
 - [Man Page Source](man/minecraft-ping.1)
 
-## Development
+Contributors:
 
-For the common local loop:
+- [Contributing](CONTRIBUTING.md)
+- [Development](docs/development.md)
+- [Architecture](docs/architecture.md)
 
-```bash
-make verify
-make coverage
-make clean-repo
-```
+Maintainer And Policy:
 
-For networking changes, `scripts/run_release_integration.sh` validates locally built binaries against the staging backends.
-For release artifact changes, use the archive smoke, reproducibility, and package smoke checks documented in [docs/development.md](docs/development.md).
-For maintainer release steps, see [docs/releasing.md](docs/releasing.md).
+- [Releasing](docs/releasing.md)
+- [Security](SECURITY.md)
+- [Governance](GOVERNANCE.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Changelog](CHANGELOG.md)
+
+Automation:
+
+- [Agent Instructions](AGENTS.md)
 
 ## License
 
