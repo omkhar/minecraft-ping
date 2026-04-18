@@ -1,0 +1,109 @@
+version: 2
+
+project_name: minecraft-ping
+
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
+
+builds:
+  - id: minecraft-ping
+    main: .
+    binary: minecraft-ping
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+      - -buildvcs=false
+    ldflags:
+      - -X main.cliVersion={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: release-archives
+    ids:
+      - minecraft-ping
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ title .Os }}_{{ .Arch }}"
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - src: LICENSE
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: man/minecraft-ping.1
+        info:
+          mtime: "{{ .CommitDate }}"
+
+nfpms:
+  - id: linux-packages
+    ids:
+      - minecraft-ping
+    package_name: minecraft-ping
+    vendor: Omkhar Arasaratnam
+    homepage: https://github.com/omkhar/minecraft-ping
+    maintainer: Omkhar Arasaratnam <omkhar@gmail.com>
+    description: CLI that measures Minecraft Java and Bedrock server latency with ping-style ergonomics.
+    license: Apache 2.0
+    section: utils
+    priority: optional
+    bindir: /usr/bin
+    mtime: "{{ .CommitDate }}"
+    formats:
+      - deb
+      - rpm
+      - apk
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/minecraft-ping/LICENSE
+        file_info:
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        dst: /usr/share/doc/minecraft-ping/README.md
+        file_info:
+          mtime: "{{ .CommitDate }}"
+      - src: man/minecraft-ping.1
+        dst: /usr/share/man/man1/minecraft-ping.1
+        file_info:
+          mtime: "{{ .CommitDate }}"
+
+checksum:
+  name_template: checksums.txt
+
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}_source"
+  format: tar.gz
+
+signs:
+  - id: cosign-keyless
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - --bundle=${signature}
+      - ${artifact}
+      - --yes
+    artifacts: all
+    output: true
+
+release:
+  draft: false
+  prerelease: auto
+
+changelog:
+  sort: asc

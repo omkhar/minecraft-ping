@@ -1,0 +1,51 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: "\\<*_&"
+sort-by: merged_at
+
+categories:
+  - title: Features
+    labels:
+      - enhancement
+      - area/java
+      - area/bedrock
+  - title: Fixes
+    labels:
+      - bug
+  - title: Documentation
+    labels:
+      - documentation
+  - title: CI And Release
+    labels:
+      - area/ci
+      - area/release
+      - github_actions
+      - dependencies
+  - title: Security
+    labels:
+      - security
+
+version-resolver:
+  major:
+    labels:
+      - semver:major
+  minor:
+    labels:
+      - semver:minor
+      - enhancement
+  patch:
+    labels:
+      - semver:patch
+      - bug
+      - dependencies
+  default: patch
+
+template: |
+  ## What Changed
+
+  $CHANGES
+
+  ## Contributors
+
+  $CONTRIBUTORS

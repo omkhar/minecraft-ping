@@ -1,0 +1,67 @@
+area/java:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "client.go"
+          - "java.go"
+          - "protocol.go"
+          - "minecraft-ping_test.go"
+          - "internal/stagingserver/server.go"
+          - "internal/stagingserver/server_test.go"
+
+area/bedrock:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "bedrock.go"
+          - "bedrock_test.go"
+          - "internal/stagingserver/bedrock.go"
+
+area/ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Makefile"
+          - "scripts/clean_repo_detritus.sh"
+          - "scripts/run_mutation_supported.sh"
+          - "scripts/sync_agent_surfaces.sh"
+          - "scripts/verify_agent_surfaces.sh"
+          - "scripts/verify_public_repo_surface.sh"
+          - ".github/workflows/**"
+          - ".github/labeler.yml"
+          - ".github/release-drafter.yml"
+
+area/release:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/goreleaser-version.txt"
+          - ".goreleaser.yml"
+          - "cmd/release-integration/**"
+          - "docker/**"
+          - "scripts/read_goreleaser_version.sh"
+          - "scripts/release_*.sh"
+          - "scripts/run_release_integration.sh"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "AGENTS.md"
+          - "CLAUDE.md"
+          - "GEMINI.md"
+          - "README.md"
+          - "CONTRIBUTING.md"
+          - "SECURITY.md"
+          - "SUPPORT.md"
+          - "GOVERNANCE.md"
+          - "CHANGELOG.md"
+          - "docs/**"
+          - "man/**"
+          - ".agents/skills/**"
+          - ".claude/skills/**"
+          - ".github/ISSUE_TEMPLATE/**"
+          - ".github/pull_request_template.md"
+
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "SECURITY.md"
+          - ".github/workflows/codeql.yml"
+          - ".github/workflows/scorecard.yml"
+          - ".github/dependabot.yml"

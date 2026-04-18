@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a regression or incorrect behavior
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please include enough detail to reproduce the problem.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, commit, or `minecraft-ping -V` output
+      placeholder: v2.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      options:
+        - Java
+        - Bedrock
+        - Both
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: Exact command that reproduces the issue
+      placeholder: minecraft-ping --bedrock -c 3 play.example.com
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, network details, and anything else relevant
+    validations:
+      required: true
+
