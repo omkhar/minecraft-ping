@@ -44,7 +44,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Cache Go lint tools
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/go/bin
           key: go-tools-lint-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.ACTIONLINT_VERSION }}-${{ env.STATICCHECK_VERSION }}-${{ env.INEFFASSIGN_VERSION }}-${{ env.GOCRITIC_VERSION }}-${{ env.GOIMPORTS_MODULE_VERSION }}-${{ env.DEADCODE_VERSION }}
@@ -124,7 +124,7 @@ jobs:
       - name: Run gocritic
         run: '"$(go env GOPATH)/bin/gocritic" check ./...'
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@71321a20a9ded102f6e9ce5718a2fcec2c4f70d8 # v0.5.2
+        uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
         with:
           advanced-security: false
           persona: auditor
@@ -190,7 +190,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Cache Go security tools
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/go/bin
           key: go-tools-security-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.GOVULNCHECK_VERSION }}-${{ env.GOSEC_VERSION }}-${{ env.GITLEAKS_VERSION }}

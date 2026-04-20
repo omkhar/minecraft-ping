@@ -53,7 +53,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Cache go-mutesting binary
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/go/bin/go-mutesting
           key: go-mutesting-${{ runner.os }}-${{ hashFiles('go.mod') }}-${{ env.GO_MUTESTING_VERSION }}
