@@ -25,6 +25,22 @@ require_single_archive() {
   printf '%s\n' "${matches[0]}"
 }
 
+reject_archive() {
+  local pattern="$1"
+  local match
+  local -a matches=()
+
+  while IFS= read -r match; do
+    [[ -n "$match" ]] || continue
+    matches+=("$match")
+  done < <(find "$DIST_DIR" -maxdepth 1 -type f -name "$pattern" | sort)
+  if [[ "${#matches[@]}" -ne 0 ]]; then
+    echo "unexpected deprecated archive matching $pattern:" >&2
+    printf '  %s\n' "${matches[@]}" >&2
+    exit 1
+  fi
+}
+
 check_tar_archive() {
   local archive="$1"
   local binary="$2"
@@ -60,7 +76,7 @@ check_source_archive() {
   grep -Fxq "man/minecraft-ping.1" <<<"$entries" || { echo "missing man/minecraft-ping.1 in $archive" >&2; exit 1; }
 }
 
-check_tar_archive "$(require_single_archive 'minecraft-ping_*_Darwin_amd64.tar.gz')" "minecraft-ping"
+reject_archive 'minecraft-ping_*_Darwin_amd64.tar.gz'
 check_tar_archive "$(require_single_archive 'minecraft-ping_*_Darwin_arm64.tar.gz')" "minecraft-ping"
 check_tar_archive "$(require_single_archive 'minecraft-ping_*_Linux_amd64.tar.gz')" "minecraft-ping"
 check_tar_archive "$(require_single_archive 'minecraft-ping_*_Linux_arm64.tar.gz')" "minecraft-ping"

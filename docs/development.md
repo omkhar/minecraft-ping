@@ -165,7 +165,7 @@ The package smoke script also asserts that the shipped binary reports the expect
 
 - `go test -race ./...`
 - shuffled `go test ./...`
-- cross-platform `go test ./...` on macOS, Linux, and Windows for `amd64` and `arm64`
+- cross-platform `go test ./...` on Linux for `amd64` and `arm64`, macOS for `arm64`, and Windows for `amd64` and `arm64`
 - lint, security, and workflow policy checks
 - GoReleaser snapshot builds
 - release archive smoke tests
@@ -174,6 +174,7 @@ The package smoke script also asserts that the shipped binary reports the expect
 - release-archive integration against the staging backend or staging container
 
 Release-archive integration probes both Java and Bedrock over IPv4 and IPv6.
+Intel macOS (`amd64`) is deprecated and is no longer part of the release-path validation matrix.
 
 ## Release Automation
 

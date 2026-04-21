@@ -250,8 +250,6 @@ jobs:
             runner: ubuntu-latest
           - name: linux-arm64
             runner: ubuntu-24.04-arm
-          - name: macos-amd64
-            runner: macos-15-intel
           - name: macos-arm64
             runner: macos-latest
           - name: windows-amd64
@@ -363,11 +361,6 @@ jobs:
             runner: ubuntu-24.04-arm
             backend: container
             artifact_glob: minecraft-ping_*_Linux_arm64.tar.gz
-            binary_name: minecraft-ping
-          - name: macos-amd64
-            runner: macos-15-intel
-            backend: binary
-            artifact_glob: minecraft-ping_*_Darwin_amd64.tar.gz
             binary_name: minecraft-ping
           - name: macos-arm64
             runner: macos-latest

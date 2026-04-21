@@ -53,6 +53,7 @@ Examples:
 - `minecraft-ping_X.Y.Z_linux_arm64.deb`
 
 The attestation flow is the same for each published artifact. Replace the filename in the example command with the asset you downloaded.
+Intel macOS (`amd64`) is deprecated, and `minecraft-ping_X.Y.Z_Darwin_amd64.tar.gz` is no longer part of the release matrix.
 
 ## Checksums
 
@@ -129,7 +130,7 @@ They supplement artifact verification rather than replace it.
 
 Published release assets include:
 
-- platform archives for macOS, Linux, and Windows
+- platform archives for macOS `arm64`, Linux, and Windows
 - a source archive
 - Linux packages where supported by the release pipeline
 - `checksums.txt`

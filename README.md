@@ -134,15 +134,17 @@ For the full flag reference, destination rules, exit status contract, and protoc
 
 Release artifacts are built for:
 
-- macOS `amd64` and `arm64`
+- macOS `arm64`
 - Linux `amd64` and `arm64`
 - Windows `amd64` and `arm64`
+
+Intel macOS (`amd64`) archives are deprecated and no longer part of the release matrix. If you still need Intel macOS, stay on the most recent release that shipped a `Darwin_amd64` archive.
 
 ## Release Artifacts
 
 Releases are built from GitHub Actions on GitHub-verified signed, annotated tags at the current `main` head.
 
-- Signed release artifacts are published for macOS, Linux, and Windows.
+- Signed release artifacts are published for macOS `arm64`, Linux, and Windows.
 - Release archives and packages are built with deterministic paths and commit-based mtimes so the artifact bytes can be reproduced from the same source tree and toolchain.
 - The release workflow publishes signed SPDX SBOM assets for each release.
 - GitHub artifact attestations and downloadable provenance bundles are published with public releases.
