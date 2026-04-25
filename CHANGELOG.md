@@ -7,6 +7,8 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Deprecated Intel macOS (`amd64`) going forward by removing `Darwin_amd64` from the next release matrix, release validation, and published support surface.
+
 ## v2.0.6 - 2026-04-18
 
 - Added launch-readiness documentation, governance, support routing, release verification guidance, contributor entrypoints, and portable agent guidance for ongoing repository maintenance.
