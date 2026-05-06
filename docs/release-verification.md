@@ -44,6 +44,8 @@ Use the asset name that matches your platform:
 - Windows archives use `.zip`
 - Linux packages use `minecraft-ping_X.Y.Z_linux_<arch>.<format>`
 
+Intel macOS (`amd64`) archives are no longer part of the release matrix. `v2.0.6` is the final release that shipped a `Darwin_amd64` archive.
+
 Examples:
 
 - `minecraft-ping_X.Y.Z_Darwin_arm64.tar.gz`
@@ -53,7 +55,6 @@ Examples:
 - `minecraft-ping_X.Y.Z_linux_arm64.deb`
 
 The attestation flow is the same for each published artifact. Replace the filename in the example command with the asset you downloaded.
-Intel macOS (`amd64`) is deprecated, and `minecraft-ping_X.Y.Z_Darwin_amd64.tar.gz` is no longer part of the release matrix.
 
 ## Checksums
 

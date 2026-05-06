@@ -7,7 +7,8 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
-- Deprecated Intel macOS (`amd64`) going forward by removing `Darwin_amd64` from the next release matrix, release validation, and published support surface.
+- Removed Intel macOS (`amd64`) from the release matrix, release validation, and published support surface; `v2.0.6` remains the final release with a `Darwin_amd64` archive.
+- Hardened release publication by keeping GoReleaser assets in a draft release until archive, provenance, and SBOM validation pass.
 
 ## v2.0.6 - 2026-04-18
 
