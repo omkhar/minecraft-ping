@@ -138,7 +138,7 @@ Release artifacts are built for:
 - Linux `amd64` and `arm64`
 - Windows `amd64` and `arm64`
 
-Intel macOS (`amd64`) archives are deprecated and no longer part of the release matrix. If you still need Intel macOS, stay on the most recent release that shipped a `Darwin_amd64` archive.
+Intel macOS (`amd64`) archives are no longer part of the release matrix. The final Intel macOS archive shipped in `v2.0.6` as a `Darwin_amd64` archive.
 
 ## Release Artifacts
 

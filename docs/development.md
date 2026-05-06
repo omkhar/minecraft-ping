@@ -174,11 +174,12 @@ The package smoke script also asserts that the shipped binary reports the expect
 - release-archive integration against the staging backend or staging container
 
 Release-archive integration probes both Java and Bedrock over IPv4 and IPv6.
-Intel macOS (`amd64`) is deprecated and is no longer part of the release-path validation matrix.
+Intel macOS (`amd64`) is no longer part of the release-path validation matrix. `v2.0.6` is the final release that shipped a `Darwin_amd64` archive.
 
 ## Release Automation
 
 Releases are built from GitHub-verified signed, annotated tags at the current `main` head.
+The workflow stages generated assets in a draft release and publishes that draft only after archive smoke, provenance, and SBOM checks pass.
 
 Maintainer flow:
 

@@ -25,7 +25,7 @@ require_single_archive() {
   printf '%s\n' "${matches[0]}"
 }
 
-reject_archive() {
+require_no_archive() {
   local pattern="$1"
   local match
   local -a matches=()
@@ -76,7 +76,7 @@ check_source_archive() {
   grep -Fxq "man/minecraft-ping.1" <<<"$entries" || { echo "missing man/minecraft-ping.1 in $archive" >&2; exit 1; }
 }
 
-reject_archive 'minecraft-ping_*_Darwin_amd64.tar.gz'
+require_no_archive 'minecraft-ping_*_Darwin_amd64.tar.gz'
 check_tar_archive "$(require_single_archive 'minecraft-ping_*_Darwin_arm64.tar.gz')" "minecraft-ping"
 check_tar_archive "$(require_single_archive 'minecraft-ping_*_Linux_amd64.tar.gz')" "minecraft-ping"
 check_tar_archive "$(require_single_archive 'minecraft-ping_*_Linux_arm64.tar.gz')" "minecraft-ping"

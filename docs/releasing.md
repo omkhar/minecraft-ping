@@ -8,7 +8,7 @@ This document is the maintainer checklist for cutting a public release.
    In practice, `go.mod` should already be set to that version before you cut the release.
    Check the official release history at `https://go.dev/doc/devel/release`.
 2. Update docs, changelog entries, and any user-visible examples that changed.
-   Keep the public support matrix honest: Intel macOS (`amd64`) is deprecated, so the release workflow should not expect a `Darwin_amd64` archive.
+   Keep the public support matrix honest: current releases do not include `Darwin_amd64`; `v2.0.6` is the final release with an Intel macOS (`amd64`) archive.
 3. Run the local checks appropriate for the scope:
 
 ```bash
@@ -32,6 +32,7 @@ make package-smoke ARCH=amd64
 2. Wait for `Main Verify` to complete successfully on that exact commit.
 3. Create a GitHub-verified signed, annotated `vX.Y.Z` tag at the current `main` head.
 4. Push the tag to trigger the release workflow.
+   The workflow stages assets in a draft release, runs archive, provenance, and SBOM validation, and publishes the draft only after those checks and uploads pass.
 
 ## After Publication
 
