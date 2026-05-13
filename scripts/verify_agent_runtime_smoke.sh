@@ -68,7 +68,7 @@ check_contract() {
     exit 1
   fi
   normalized="${contract//\`/}"
-  normalized="${normalized//|.claude\/skills\/|/|.claude\/skills|}"
+  normalized="${normalized//|.claude\/skills\/|/|.claude/skills|}"
   if [[ "${normalized}" != "${expected_contract}" ]]; then
     echo "${name} smoke output did not match the expected repo contract" >&2
     printf 'expected: %s\nactual:   %s\n' "${expected_contract}" "${contract}" >&2
@@ -91,7 +91,7 @@ run_claude_smoke() {
 
 run_gemini_smoke() {
   local output
-  output="$(cd "${repo_root}" && gemini --approval-mode plan -p "${common_prompt}" 2>&1)"
+  output="$(cd "${repo_root}" && GEMINI_CLI_TRUST_WORKSPACE=true gemini --approval-mode plan -p "${common_prompt}" 2>&1)"
   check_contract "Gemini" "${output}"
 }
 
