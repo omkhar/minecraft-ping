@@ -9,7 +9,7 @@ set -euo pipefail
 : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}"
 : "${GEMINI_API_KEY:?GEMINI_API_KEY is required}"
 
-npm install -g \
+npm install -g --ignore-scripts \
   "@openai/codex@${CODEX_CLI_VERSION}" \
   "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
   "@google/gemini-cli@${GEMINI_CLI_VERSION}"
