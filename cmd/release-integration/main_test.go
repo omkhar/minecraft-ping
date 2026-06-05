@@ -16,7 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -366,7 +366,6 @@ func TestVersionFromArchiveName(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -490,7 +489,6 @@ func TestValidateConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			if err := validateConfig(test.cfg); err != nil {
@@ -597,7 +595,6 @@ func TestValidateConfig(t *testing.T) {
 	}
 
 	for _, test := range errorCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			err := validateConfig(test.cfg)
@@ -750,7 +747,6 @@ func TestRunCLILogsErrorsAndSuppressesFlagOutput(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			restore := restoreReleaseHooks()
 			defer restore()
@@ -890,7 +886,6 @@ func TestRunPropagatesStepErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			restore := restoreReleaseHooks()
 			defer restore()
@@ -1368,7 +1363,6 @@ func TestStartBinaryBackendErrorPaths(t *testing.T) {
 		}
 
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				restore := restoreReleaseHooks()
 				defer restore()
@@ -1548,7 +1542,6 @@ func TestFormatProbeTimeout(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.want, func(t *testing.T) {
 			t.Parallel()
 			if got := formatProbeTimeout(test.timeout); got != test.want {
@@ -1827,7 +1820,6 @@ func TestStartContainerBackendErrorPaths(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			restore := restoreReleaseHooks()
 			defer restore()
@@ -2032,7 +2024,6 @@ func TestIsContainerNotFoundError(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.message, func(t *testing.T) {
 			t.Parallel()
 			if got := isContainerNotFoundError(test.message); got != test.want {
@@ -2123,7 +2114,6 @@ func TestExtractBinaryDispatch(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2490,10 +2480,8 @@ func TestExtractBinarySizeBoundaries(t *testing.T) {
 	}
 
 	for _, format := range formats {
-		format := format
 		t.Run(format.name, func(t *testing.T) {
 			for _, size := range sizes {
-				size := size
 				t.Run(size.name, func(t *testing.T) {
 					dir := t.TempDir()
 					archivePath := filepath.Join(dir, "minecraft-ping"+format.suffix)
@@ -3144,7 +3132,7 @@ func createZipArchive(t *testing.T, path string, entries map[string][]byte) {
 	for name := range entries {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		contents := entries[name]
 		entry, err := writer.Create(name)
@@ -3175,7 +3163,7 @@ func createTarGzArchive(t *testing.T, path string, entries map[string][]byte) {
 	for name := range entries {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		contents := entries[name]
 		header := &tar.Header{

@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -200,8 +201,7 @@ func assertVersion(ctx context.Context, binaryPath, expectedVersion string) erro
 	cmd := execCommandContext(commandCtx, binaryPath, "-V")
 	stdout, err := cmd.Output()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			return fmt.Errorf("version check failed: %w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
 		}
 		return fmt.Errorf("run version check: %w", err)
@@ -484,8 +484,7 @@ func removeContainer(ctx context.Context, containerCLI, containerName string) er
 	cmd := execCommandContext(ctx, containerCLI, "rm", "-f", containerName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if _, ok := errors.AsType[*exec.ExitError](err); ok {
 			message := strings.TrimSpace(string(output))
 			if isContainerNotFoundError(message) {
 				return nil
@@ -581,8 +580,7 @@ func runProbe(ctx context.Context, binaryPath string, timeout time.Duration, spe
 
 	stdout, err := cmd.Output()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			return pingResult{}, fmt.Errorf("command failed: %w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
 		}
 		return pingResult{}, err
@@ -763,8 +761,8 @@ func openReadOnlyFile(path string) (*os.File, error) {
 }
 
 func runCleanup(cleanup []func()) {
-	for i := len(cleanup) - 1; i >= 0; i-- {
-		cleanup[i]()
+	for _, c := range slices.Backward(cleanup) {
+		c()
 	}
 }
 

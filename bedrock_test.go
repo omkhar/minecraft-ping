@@ -48,7 +48,7 @@ func TestBuildBedrockStatusRequest(t *testing.T) {
 	if got := binary.BigEndian.Uint64(packet[1:9]); got != pingTime {
 		t.Fatalf("packet timestamp = %d, want %d", got, pingTime)
 	}
-	if got := packet[9:25]; string(got) != string(bedrockMagic[:]) {
+	if got := packet[9:25]; !bytes.Equal(got, bedrockMagic[:]) {
 		t.Fatalf("magic = %x", got)
 	}
 }
@@ -97,7 +97,7 @@ func TestParseBedrockStatusResponseRejectsTimestampMismatch(t *testing.T) {
 
 func TestParseBedrockStatusResponseRejectsInvalidBrand(t *testing.T) {
 	payload := mustDecodeHex(t, liveBedrockPongHex)
-	copy(payload[35:39], []byte("XCPE"))
+	copy(payload[35:39], "XCPE")
 	_, err := parseBedrockStatusResponse(payload, binary.BigEndian.Uint64(payload[1:9]))
 	if err == nil || err.Error() != `unexpected bedrock status brand "XCPE"` {
 		t.Fatalf("parseBedrockStatusResponse() error = %v", err)

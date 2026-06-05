@@ -128,7 +128,6 @@ func TestPingBedrockReturnsZeroLatencyOnError(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -286,7 +285,6 @@ func TestBedrockTargetSpecFromEndpointDefaults(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -339,7 +337,6 @@ func TestResolveBedrockCandidatesRejectsInvalidInputs(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -666,7 +663,6 @@ func TestParseBedrockStatusTextFieldBoundaries(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -716,7 +712,6 @@ func TestParseBedrockStatusTextReportsFieldSpecificTokens(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
