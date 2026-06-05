@@ -7,6 +7,13 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+## v2.0.7 - 2026-06-05
+
+- Bumped Go toolchain to `1.26.4` (`go.mod` and the staging container image) to stay on the latest stable patch release.
+- Pinned the staging container's golang base image by multi-arch index digest (`golang:1.26.4-bookworm@sha256:5d2b868…`), clearing the OpenSSF Scorecard `Pinned-Dependencies` (`containerImage`) finding on `docker/staging-minecraft.Dockerfile`.
+- Hardened `scripts/install_agent_clis.sh` by adding `--ignore-scripts` to the `@openai/codex` and `@google/gemini-cli` installs as defense-in-depth; kept `@anthropic-ai/claude-code`'s postinstall enabled so its per-platform native binary still links over the placeholder stub.
+- Applied Go 1.21–1.26 idiomatic upgrades across the module (range-over-int, `errors.AsType`, `slices.Backward`, `sync.WaitGroup.Go`, removed obsolete loop-variable captures, `sort.Strings` → `slices.Sort`, byte-slice comparisons via `slices.Equal`/`bytes.Equal`); behavior and public API unchanged.
+- Bumped pinned GitHub Actions (`github/codeql-action` 4.35.5 → 4.36.0, `release-drafter/release-drafter` 7.3.0 → 7.3.1).
 - Removed Intel macOS (`amd64`) from the release matrix, release validation, and published support surface; `v2.0.6` remains the final release with a `Darwin_amd64` archive.
 - Hardened release publication by keeping GoReleaser assets in a draft release until archive, provenance, and SBOM validation pass.
 
