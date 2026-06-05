@@ -318,7 +318,6 @@ func TestServeReportsListenSetupErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -351,11 +350,9 @@ func TestWaitForServeExitClosesBeforeWaiting(t *testing.T) {
 	errCh <- sentinel
 
 	var acceptWG sync.WaitGroup
-	acceptWG.Add(1)
-	go func() {
-		defer acceptWG.Done()
+	acceptWG.Go(func() {
 		_, _ = listener.Accept()
-	}()
+	})
 
 	<-listener.acceptStarted
 
@@ -569,7 +566,6 @@ func TestExpectStatusHandshakeWrapsVarIntReadErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -735,7 +731,6 @@ func TestWritePacketRejectsInvalidPayloadSizes(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -786,7 +781,6 @@ func TestReadPacketRejectsInvalidLengthsAndShortReads(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1040,7 +1034,6 @@ func TestWriteStringRejectsInvalidUTF8AndOversizedPayloads(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1177,7 +1170,6 @@ func TestProbeRejectsOnlyOutOfRangePorts(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1189,7 +1181,6 @@ func TestProbeRejectsOnlyOutOfRangePorts(t *testing.T) {
 	}
 
 	for _, port := range []int{0, int(^uint16(0))} {
-		port := port
 		t.Run(fmt.Sprintf("accepted boundary %d", port), func(t *testing.T) {
 			t.Parallel()
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -289,7 +290,7 @@ func parseBedrockStatusResponse(payload []byte, expectedPingTime uint64) (bedroc
 	if pingTime != expectedPingTime {
 		return bedrockStatus{}, errors.New("bedrock pong ping time mismatch")
 	}
-	if payloadMagic := payload[17:33]; string(payloadMagic) != string(bedrockMagic[:]) {
+	if !slices.Equal(payload[17:33], bedrockMagic[:]) {
 		return bedrockStatus{}, errors.New("bedrock pong magic mismatch")
 	}
 
@@ -351,6 +352,6 @@ func parseBedrockStatusText(statusText string) (bedrockStatus, error) {
 	return status, nil
 }
 
-func ioErrUnexpectedEOF(context string) error {
-	return fmt.Errorf("%s: unexpected EOF", context)
+func ioErrUnexpectedEOF(where string) error {
+	return fmt.Errorf("%s: unexpected EOF", where)
 }

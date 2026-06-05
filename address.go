@@ -149,7 +149,7 @@ func interleaveDialCandidates(primary []dialCandidate, secondary []dialCandidate
 
 	limit := max(len(secondary), len(primary))
 
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		if i < len(primary) {
 			ordered = append(ordered, primary[i])
 		}
