@@ -8,7 +8,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-agent_cli_root="${repo_root}/.github/agent-clis"
+agent_cli_root="${repo_root}/tools/agent-clis"
 agent_cli_bin="${agent_cli_root}/node_modules/.bin"
 
 run_npm_without_provider_secrets() {

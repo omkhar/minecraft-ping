@@ -47,16 +47,20 @@ compare_path "CLAUDE.md"
 compare_path "GEMINI.md"
 compare_path ".claude/skills"
 
-agent_cli_manifest="${repo_root}/.github/agent-clis/package.json"
-agent_cli_lockfile="${repo_root}/.github/agent-clis/package-lock.json"
+agent_cli_manifest="${repo_root}/tools/agent-clis/package.json"
+agent_cli_lockfile="${repo_root}/tools/agent-clis/package-lock.json"
 if [[ ! -f "${agent_cli_manifest}" || ! -f "${agent_cli_lockfile}" ]]; then
   echo "agent CLI bootstrap must keep package.json and package-lock.json checked in" >&2
   exit 1
 fi
 if ! git -C "${repo_root}" ls-files --error-unmatch -- \
-  .github/agent-clis/package.json \
-  .github/agent-clis/package-lock.json >/dev/null; then
+  tools/agent-clis/package.json \
+  tools/agent-clis/package-lock.json >/dev/null; then
   echo "agent CLI bootstrap files must be tracked by git" >&2
+  exit 1
+fi
+if git -C "${repo_root}" ls-files -- .github/agent-clis | grep -q .; then
+  echo "agent CLI bootstrap files must live outside .github so Dependabot can update them" >&2
   exit 1
 fi
 
