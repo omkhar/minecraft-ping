@@ -47,4 +47,36 @@ compare_path "CLAUDE.md"
 compare_path "GEMINI.md"
 compare_path ".claude/skills"
 
+agent_cli_manifest="${repo_root}/.github/agent-clis/package.json"
+agent_cli_lockfile="${repo_root}/.github/agent-clis/package-lock.json"
+if [[ ! -f "${agent_cli_manifest}" || ! -f "${agent_cli_lockfile}" ]]; then
+  echo "agent CLI bootstrap must keep package.json and package-lock.json checked in" >&2
+  exit 1
+fi
+if ! git -C "${repo_root}" ls-files --error-unmatch -- \
+  .github/agent-clis/package.json \
+  .github/agent-clis/package-lock.json >/dev/null; then
+  echo "agent CLI bootstrap files must be tracked by git" >&2
+  exit 1
+fi
+
+if grep -E 'npm[[:space:]]+install[[:space:]].*-g|CODEX_CLI_VERSION|CLAUDE_CODE_VERSION|GEMINI_CLI_VERSION' \
+  "${repo_root}/scripts/install_agent_clis.sh" \
+  "${repo_root}/.github/workflows/go.yml" \
+  "${repo_root}/.github/workflows/pr-fast.yml" >/dev/null; then
+  echo "agent CLI bootstrap must use the checked-in lockfile instead of global npm installs or workflow CLI version env pins" >&2
+  exit 1
+fi
+
+if grep -E '^[[:space:]]*npm[[:space:]]' "${repo_root}/scripts/install_agent_clis.sh" >/dev/null; then
+  echo "agent CLI npm commands must run through the provider-secret-scrubbing wrapper" >&2
+  exit 1
+fi
+
+if ! grep -q 'run_npm_without_provider_secrets ci --include=dev --ignore-scripts' "${repo_root}/scripts/install_agent_clis.sh" ||
+  ! grep -q 'run_npm_without_provider_secrets rebuild @anthropic-ai/claude-code --foreground-scripts --ignore-scripts=false' "${repo_root}/scripts/install_agent_clis.sh"; then
+  echo "agent CLI bootstrap must run npm ci with scripts disabled, then rebuild only Claude Code" >&2
+  exit 1
+fi
+
 "${repo_root}/scripts/verify_agent_runtime_smoke.sh"

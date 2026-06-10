@@ -7,6 +7,10 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Replaced global agent CLI npm installs with a checked-in npm lockfile,
+  `npm ci` bootstrap, and a Gemini CLI bump to avoid the advisory affecting
+  the previous agent-smoke pin.
+
 ## v2.0.7 - 2026-06-05
 
 - Bumped Go toolchain to `1.26.4` (`go.mod` and the staging container image) to stay on the latest stable patch release.
