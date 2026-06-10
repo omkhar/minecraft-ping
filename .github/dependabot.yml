@@ -33,7 +33,7 @@ updates:
           - "*"
 
   - package-ecosystem: "npm"
-    directory: "/.github/agent-clis"
+    directory: "/tools/agent-clis"
     schedule:
       interval: "daily"
       time: "04:30"
