@@ -1,0 +1,10 @@
+{
+  "name": "minecraft-ping-agent-clis",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@anthropic-ai/claude-code": "2.1.114",
+    "@google/gemini-cli": "0.45.2",
+    "@openai/codex": "0.121.0"
+  }
+}
