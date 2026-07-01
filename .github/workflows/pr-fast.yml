@@ -82,6 +82,8 @@ jobs:
         run: '"$(go env GOPATH)/bin/actionlint"'
       - name: Verify public repo surface
         run: make public-verify
+      - name: Verify agent surfaces
+        run: make agents-verify
       - name: Check gofmt
         run: |
           mapfile -t go_files < <(rg --files -g '*.go')
@@ -126,51 +128,6 @@ jobs:
         with:
           advanced-security: false
           persona: auditor
-
-  ci-agent-smoke:
-    name: ci-agent-smoke
-    runs-on: ubuntu-latest
-    environment: agent-smoke
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Detect live agent smoke availability
-        id: agent_smoke
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          if [[ -n "${OPENAI_API_KEY}" && -n "${ANTHROPIC_API_KEY}" && -n "${GEMINI_API_KEY}" ]]; then
-            echo "ready=1" >> "${GITHUB_OUTPUT}"
-            echo "Live agent smoke enabled for PR Fast."
-            exit 0
-          fi
-
-          echo "ready=0" >> "${GITHUB_OUTPUT}"
-          echo "Live agent smoke disabled for PR Fast because one or more provider secrets are not configured."
-      - name: Install agent CLIs for runtime smoke
-        if: steps.agent_smoke.outputs.ready == '1'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: scripts/install_agent_clis.sh
-      - name: Verify agent surfaces
-        env:
-          AGENT_SMOKE_REQUIRE_ALL: ${{ steps.agent_smoke.outputs.ready }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: make agents-verify
 
   dependency-review:
     name: dependency-review

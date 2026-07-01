@@ -39,7 +39,7 @@ make agents-sync
 make agents-verify
 ```
 
-`make agents-verify` always checks generated-surface drift. When the `codex`, `claude`, and `gemini` CLIs are installed locally, it also runs the structured contract smoke against each one. Trusted PR runs and `Main Verify` enforce the same live smoke in GitHub Actions once the provider API keys are configured for the dedicated `agent-smoke` environment. Fork PR workflows keep the live smoke structural-only so secrets are not exposed to untrusted code.
+`make agents-verify` checks generated-surface drift only. It does not install or invoke LLM CLIs, and CI must not require provider API keys for agent-surface validation.
 
 If you have `deadcode` installed locally, run it before large refactors or cleanup-heavy changes:
 

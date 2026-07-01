@@ -4,7 +4,6 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-blacklist_file="${repo_root}/.go-mutesting.blacklist"
 
 tool="$(command -v go-mutesting || true)"
 if [[ -z "${tool}" && -x "$(go env GOPATH)/bin/go-mutesting" ]]; then
@@ -13,11 +12,6 @@ fi
 if [[ -z "${tool}" ]]; then
   echo "go-mutesting not found in PATH or GOPATH/bin" >&2
   exit 1
-fi
-
-blacklist_args=()
-if [[ -f "${blacklist_file}" ]]; then
-  blacklist_args+=(--blacklist "${blacklist_file}")
 fi
 
 package_dir=""
@@ -66,7 +60,7 @@ for package_path in "${eligible_packages[@]}"; do
 
   if ! (
     cd "${repo_root}"
-    "${tool}" --config .go-mutesting.yml "${blacklist_args[@]}" "${package_path}"
+    "${tool}" --config .go-mutesting.yml "${package_path}"
   ); then
     restore_package
     exit 1

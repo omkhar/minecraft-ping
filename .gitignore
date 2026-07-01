@@ -1,7 +1,5 @@
 /minecraft-ping
 /dist/
-/.github/agent-clis/node_modules/
-/tools/agent-clis/node_modules/
 coverage.out
 report.json
 

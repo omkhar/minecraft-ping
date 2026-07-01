@@ -39,7 +39,7 @@ Also load these repo-local skills when they apply:
 - When you edit `AGENTS.md` or `.agents/skills/`:
   - `make agents-sync`
   - `make agents-verify`
-  - `make agents-verify` always checks generated-surface drift. It also runs a structured live Codex, Claude, and Gemini contract smoke when those CLIs are installed locally. Trusted PR runs and `Main Verify` require that live smoke once the repository secrets are configured; fork PRs keep the live smoke optional so secrets are not exposed.
+  - `make agents-verify` only checks generated-surface drift. It must not install or invoke LLM CLIs.
 - Logic-heavy parser, CLI, or protocol changes:
   - `make deadcode` when `deadcode` is installed locally
   - `make mutation` when `go-mutesting` is installed locally
