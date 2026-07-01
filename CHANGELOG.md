@@ -7,18 +7,13 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
-- Removed live LLM CLI smoke tests, provider-key CI plumbing, and checked-in
-  agent CLI npm dependencies. Agent-surface verification is now structural only.
-- Removed stale release check gating, old agent CLI ignore entries, the
-  unused benchmark wrapper, and opaque mutation blacklist suppressions.
-
-## v2.0.7 - 2026-06-05
+## v2.0.7 - 2026-07-01
 
 - Bumped Go toolchain to `1.26.4` (`go.mod` and the staging container image) to stay on the latest stable patch release.
-- Pinned the staging container's golang base image by multi-arch index digest (`golang:1.26.4-bookworm@sha256:5d2b868…`), clearing the OpenSSF Scorecard `Pinned-Dependencies` (`containerImage`) finding on `docker/staging-minecraft.Dockerfile`.
-- Hardened the former live agent CLI bootstrap path with safer npm lifecycle handling.
+- Pinned the staging container's golang base image by multi-arch index digest (`golang:1.26.4-bookworm@sha256:b305420…`), clearing the OpenSSF Scorecard `Pinned-Dependencies` (`containerImage`) finding on `docker/staging-minecraft.Dockerfile`.
+- Removed live LLM CLI smoke tests, provider-key CI plumbing, checked-in agent CLI npm dependencies, old agent CLI ignore entries, unused benchmark scaffolding, stale release check gating, and opaque mutation blacklist suppressions. Agent-surface verification is now structural only.
 - Applied Go 1.21–1.26 idiomatic upgrades across the module (range-over-int, `errors.AsType`, `slices.Backward`, `sync.WaitGroup.Go`, removed obsolete loop-variable captures, `sort.Strings` → `slices.Sort`, byte-slice comparisons via `slices.Equal`/`bytes.Equal`); behavior and public API unchanged.
-- Bumped pinned GitHub Actions (`github/codeql-action` 4.35.5 → 4.36.0, `release-drafter/release-drafter` 7.3.0 → 7.3.1).
+- Bumped pinned GitHub Actions (`github/codeql-action` 4.35.5 → 4.36.2, `release-drafter/release-drafter` 7.3.0 → 7.4.0).
 - Removed Intel macOS (`amd64`) from the release matrix, release validation, and published support surface; `v2.0.6` remains the final release with a `Darwin_amd64` archive.
 - Hardened release publication by keeping GoReleaser assets in a draft release until archive, provenance, and SBOM validation pass.
 
