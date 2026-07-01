@@ -21,6 +21,7 @@ const (
 	maxPacketLength          = 2 * 1024 * 1024
 	maxStatusJSONLength      = 1 * 1024 * 1024
 	maxHandshakeHostByteSize = 255
+	maxVarIntBytes           = 5
 
 	packetIDHandshake      int32 = 0x00
 	nextStateStatus        int32 = 0x01
@@ -363,7 +364,7 @@ func readVarInt(r io.Reader) (int32, error) {
 	)
 
 	for {
-		if numRead >= 5 {
+		if numRead >= maxVarIntBytes {
 			return 0, errVarIntTooLong
 		}
 
@@ -389,7 +390,7 @@ func readVarIntFromBytes(payload []byte) (int32, int, error) {
 	)
 
 	for {
-		if numRead >= 5 {
+		if numRead >= maxVarIntBytes {
 			return 0, 0, errVarIntTooLong
 		}
 		if numRead >= len(payload) {
@@ -432,7 +433,7 @@ func readStringFromBytes(payload []byte, maxBytes int) (string, int, error) {
 }
 
 func writeVarInt(w io.Writer, value int32) {
-	var buf [5]byte
+	var buf [maxVarIntBytes]byte
 	n := 0
 	// #nosec G115 -- callers only pass non-negative protocol constants and checked payload lengths.
 	v := uint32(value)

@@ -68,6 +68,9 @@ func TestConfigWithDefaultsUsesExpectedPublicDefaults(t *testing.T) {
 	if maxStatusJSONLength != 1*1024*1024 {
 		t.Fatalf("maxStatusJSONLength = %d, want %d", maxStatusJSONLength, 1*1024*1024)
 	}
+	if maxVarIntBytes != 5 {
+		t.Fatalf("maxVarIntBytes = %d, want 5", maxVarIntBytes)
+	}
 
 	cfg := (Config{}).withDefaults()
 	if cfg.StatusJSON != DefaultStatusJSON() {

@@ -87,7 +87,6 @@ jobs:
         shell: bash
         run: |
           required_contexts=(
-            "ci-agent-smoke"
             "ci-lint"
             "ci-security"
             "ci-test"

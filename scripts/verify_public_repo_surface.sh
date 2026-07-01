@@ -10,6 +10,8 @@ disallowed_files=(
   "scripts/run_shared_builder_checks.sh"
   "scripts/run_shared_builder_inner.sh"
   "shared_builder_checks_test.go"
+  "scripts/install_agent_clis.sh"
+  "scripts/verify_agent_runtime_smoke.sh"
 )
 
 for relative_path in "${disallowed_files[@]}"; do
@@ -22,6 +24,7 @@ done
 disallowed_dirs=(
   ".codex"
   ".gemini"
+  "tools/agent-clis"
 )
 
 for relative_path in "${disallowed_dirs[@]}"; do
@@ -50,6 +53,7 @@ scan_paths=(
   "AGENTS.md"
   "CLAUDE.md"
   "GEMINI.md"
+  ".gitignore"
   "Makefile"
   "docs"
   "scripts/run_mutation_pr.sh"
@@ -58,11 +62,9 @@ scan_paths=(
   "scripts/clean_repo_detritus.sh"
   "scripts/read_goreleaser_version.sh"
   "scripts/release_archive_smoke.sh"
-  "scripts/install_agent_clis.sh"
   "scripts/release_linux_package_smoke.sh"
   "scripts/release_reproducibility.sh"
   "scripts/sync_agent_surfaces.sh"
-  "scripts/verify_agent_runtime_smoke.sh"
   "scripts/verify_agent_surfaces.sh"
   ".github/ISSUE_TEMPLATE"
   ".github/CODEOWNERS"
@@ -88,9 +90,18 @@ patterns=(
   "build-runner.Dockerfile"
   "codex-runs"
   ".shared-builder.local.env"
+  "agent-smoke"
+  "AGENT_SMOKE_REQUIRE"
+  "ANTHROPIC_API_KEY"
+  "ci-agent-smoke"
+  "GEMINI_API_KEY"
+  "OPENAI_API_KEY"
   "When this repository is public"
   "Once the repository is public"
+  "agent-clis"
+  "install_agent_clis"
   "visibility and ownership support"
+  "verify_agent_runtime_smoke"
 )
 
 for pattern in "${patterns[@]}"; do

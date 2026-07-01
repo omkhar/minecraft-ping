@@ -2,15 +2,9 @@
 set -euo pipefail
 
 MUTEST_BIN="$(go env GOPATH)/bin/go-mutesting"
-BLACKLIST_FILE=".go-mutesting.blacklist"
 if [[ ! -x "$MUTEST_BIN" ]]; then
   echo "go-mutesting not installed at $MUTEST_BIN" >&2
   exit 2
-fi
-
-BLACKLIST_ARGS=()
-if [[ -f "$BLACKLIST_FILE" ]]; then
-  BLACKLIST_ARGS+=(--blacklist "$BLACKLIST_FILE")
 fi
 
 package_dir=""
@@ -91,7 +85,7 @@ for dir in "${eligible_dirs[@]}"; do
   backup_dir="$(mktemp -d)"
   cp -R "${package_dir}/." "${backup_dir}/"
 
-  if ! "$MUTEST_BIN" --config .go-mutesting.yml "${BLACKLIST_ARGS[@]}" --exec-timeout 30 "$dir"; then
+  if ! "$MUTEST_BIN" --config .go-mutesting.yml --exec-timeout 30 "$dir"; then
     restore_package
     exit 1
   fi
