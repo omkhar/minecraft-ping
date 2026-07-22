@@ -1,21 +1,26 @@
 # Security Policy
 
+This document uses ASD-STE100 Simplified Technical English.
+
 ## Supported Versions
 
-Security fixes are developed on `main`.
+The project develops security fixes on `main`.
 
-This repository does not currently maintain long-lived patch branches for older release tags. When a security fix is accepted, the supported upgrade path is the next release cut from `main`.
+This repository does not maintain long-lived patch branches for older release tags.
+For an accepted security fix, upgrade to the next release from `main`.
 
 ## Reporting A Vulnerability
 
-Preferred private reporting paths:
+Use one of these private reporting paths:
 
-- email `minecraft-ping@omkhar.net`
-- [GitHub private vulnerability reporting](https://github.com/omkhar/minecraft-ping/security/advisories/new)
+- Send email to `minecraft-ping@omkhar.net`.
+- Use [GitHub private vulnerability reporting](https://github.com/omkhar/minecraft-ping/security/advisories/new).
 
-GitHub private vulnerability reporting should remain enabled so reporters have a structured in-product disclosure path in addition to email.
+Keep GitHub private vulnerability reporting enabled.
+It gives reporters a structured private disclosure path in addition to email.
 
-Do not open a public issue, discussion, or pull request for a security problem until a fix is available and coordinated disclosure is agreed.
+Do not open a public issue, discussion, or pull request for a security problem before the project has a fix.
+The participants must also agree on coordinated disclosure.
 
 Include:
 
@@ -26,4 +31,8 @@ Include:
 
 If the report involves release integrity, signing, or provenance behavior, include the exact tag, workflow run, and artifact names involved.
 
-Valid reports are triaged privately. When a fix is ready, the patched version and any coordinated disclosure details will be communicated through the normal release process or another agreed private coordination channel.
+The maintainer triages valid reports privately.
+When a fix is ready, the maintainer communicates the patched version and disclosure details through one of these channels:
+
+- the normal release process
+- another agreed private coordination channel

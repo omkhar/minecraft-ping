@@ -1,38 +1,42 @@
 # Governance
 
-`minecraft-ping` is currently a single-maintainer project.
+This document uses ASD-STE100 Simplified Technical English.
+
+One maintainer manages `minecraft-ping`.
 
 ## Maintainer
 
-- The repository owner is the default maintainer and release manager.
-- The maintainer is responsible for roadmap decisions, review, release publication, security coordination, and repository policy.
+- The repository owner serves as the default maintainer and release manager.
+- The maintainer sets the roadmap, reviews changes, publishes releases, coordinates security work, and maintains repository policy.
 
 ## Decision Making
 
-- Changes merge when they improve the project and preserve its design constraints.
+- The maintainer merges changes when they improve the project and preserve its design constraints.
 - The maintainer may reject changes that increase protocol ambiguity, add misleading ICMP-like output, or add maintenance cost disproportionate to user value.
-- For substantial refactors or behavior changes, open an issue before implementation so direction can be aligned first.
+- For a substantial refactor or behavior change, open an issue before you change the code.
+- This issue lets the maintainer and contributors agree on the direction.
 
 ## Contributions
 
-- Contributions are reviewed on technical merit, scope, test coverage, and documentation quality.
-- Small, focused pull requests are preferred over broad mixed-purpose patches.
-- Contributors are expected to follow the repository's [Code of Conduct](CODE_OF_CONDUCT.md), [Contributing](CONTRIBUTING.md), and [Security](SECURITY.md) guidance.
+- The maintainer assesses contributions by technical merit, scope, test coverage, and documentation quality.
+- Prefer small, focused pull requests to broad, mixed-purpose patches.
+- Contributors must follow the repository's [Code of Conduct](CODE_OF_CONDUCT.md), [Contributing](CONTRIBUTING.md), and [Security](SECURITY.md) guidance.
 
 ## Releases
 
-- Releases are cut from `main`.
-- Release artifacts are built and published from GitHub Actions using signed, annotated tags.
+- The maintainer cuts releases from `main`.
+- GitHub Actions builds and publishes release artifacts from signed, annotated tags.
 - The maintainer may delay a release if validation, provenance, or artifact quality checks are not satisfactory.
 
 ## Security
 
-- Security reports are handled privately first.
-- Public disclosure happens after a fix is available or when coordinated disclosure has been agreed.
-- Security fixes are developed on `main`; this repository does not maintain long-lived patch branches for older tags.
+- The maintainer first handles security reports privately.
+- The project discloses a report after a fix exists or after the participants agree on coordinated disclosure.
+- The project develops security fixes on `main`.
+- It does not maintain long-lived patch branches for older tags.
 
 ## Compatibility
 
-- The command-line interface and user-visible behavior are treated as the primary compatibility surface.
-- The project prefers explicit Java and Bedrock behavior over auto-detection or speculative protocol abstraction.
-- Internal scripts, test harnesses, and private implementation details may change when that improves correctness or maintainability.
+- Treat the command-line interface and user-visible behavior as the primary compatibility surface.
+- The project uses explicit Java and Bedrock behavior instead of auto-detection or speculative protocol abstraction.
+- The maintainer may change internal scripts, test harnesses, and private implementation details to improve correctness or maintainability.

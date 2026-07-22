@@ -1,6 +1,6 @@
 # Runtime Versions
 
-This document uses ASD-STE100 Simplified Technical English where it is practical for software terms.
+This document uses ASD-STE100 Simplified Technical English.
 
 ## Shipped Program
 
@@ -53,7 +53,8 @@ The main tool versions are:
 - go-mutesting `v0.0.0-20251226130216-48d0401f00fb`
 
 The machine-readable source is [`docs/runtime-versions.json`](runtime-versions.json).
-Its test checks the Go version, staging image, runner labels, and action SHAs.
+Its tests check the Go version, staging image, package-smoke images, runner
+labels, action SHAs, action tags, and tool versions.
 CI fails if these values do not agree with the repository.
 
 ## Update Procedure

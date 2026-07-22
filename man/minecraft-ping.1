@@ -1,4 +1,5 @@
-.TH MINECRAFT-PING 1 "2026-04-17" "minecraft-ping" "User Commands"
+.\" This document uses ASD-STE100 Simplified Technical English.
+.TH MINECRAFT-PING 1 "2026-07-22" "minecraft-ping" "User Commands"
 .SH NAME
 minecraft-ping \- measure Minecraft server latency with ping-style ergonomics
 .SH SYNOPSIS
@@ -10,7 +11,7 @@ measures Minecraft Java Edition and Bedrock Edition server latency while
 keeping the command-line experience close to Unix
 .BR ping .
 Java Edition is the default.
-Bedrock Edition is selected explicitly with
+Select Bedrock Edition with
 .B --bedrock
 or
 .BR "--edition bedrock" .
@@ -31,22 +32,37 @@ Stop after
 probes.
 .TP
 .BI "-i " interval
-Wait
+Set the minimum probe start-to-start interval to
 .I interval
-seconds between probes.
+seconds.
 This value must be positive and may be fractional.
+The default is one second.
 .TP
 .BI "-w " deadline
-Stop after
+Stop starting probes after
 .I deadline
 seconds.
 This value must be positive and may be fractional.
 .TP
 .BI "-W " timeout
-Wait
+Set the socket input and output timeout to
 .I timeout
-seconds for each probe.
+seconds after each connection succeeds.
 This value must be positive, may be fractional, and must not exceed 30 seconds.
+The default is five seconds.
+.PP
+These three duration options accept decimal seconds.
+The minimum is one nanosecond.
+The maximum duration is 9,223,372,036.854775807 seconds.
+The parser rejects exponent notation and nonfinite values.
+.B -W
+has a separate maximum of 30 seconds.
+.PP
+.B -W
+does not limit DNS work or connection setup.
+.B -w
+does not cancel preparation, connection setup, or an active probe.
+The program checks the session deadline between probes.
 .TP
 .B -q
 Quiet mode.
@@ -57,10 +73,12 @@ Prefix live reply lines with a Unix timestamp.
 .TP
 .B -n
 Use numeric output only.
+The first banner can contain the host name when DNS gives more than one usable
+address.
 .TP
 .B -j
 Emit a single JSON probe result.
-This mode is intended for scripts and automation.
+Use this mode for scripts and automation.
 .TP
 .B --allow-private
 Allow loopback, private, link-local, and documentation-only IP targets.
@@ -107,6 +125,9 @@ Bedrock Edition over IPv4: 19132
 Bedrock Edition over IPv6: 19133
 .PP
 If a port is present in the destination, it always wins.
+.PP
+One process accepts one destination.
+A server name can contain no more than 253 bytes.
 .SH JSON MODE
 JSON mode emits one object to standard output:
 .PP
@@ -133,15 +154,18 @@ and
 .SH EXIT STATUS
 .TP
 .B 0
-At least one reply was received, or a JSON probe succeeded.
+Text mode got a reply and did not meet the count-and-deadline failure condition.
+A JSON probe succeeded.
 .TP
 .B 1
-No replies were received, or a JSON probe reached the probe step and failed.
+Text mode got no reply.
+This status also applies when count and deadline are both set and replies are
+fewer than count.
+A JSON probe reached the probe step and failed.
 .TP
 .B 2
-Invalid argv or a setup or runtime error occurred
-before a meaningful probe completed,
-including JSON prepare or setup failures.
+Argv was invalid, or setup failed before a probe.
+This status includes JSON preparation failures.
 .SH EXAMPLES
 .EX
 minecraft-ping mc.example.com
@@ -165,6 +189,24 @@ The tool does not fake ICMP-only fields such as
 .BR ttl ,
 byte counts, or
 .BR icmp_seq .
+.SH LIMITS
+.IP \(bu 2
+The tool does not log in to the server or prove that a player can join.
+.IP \(bu 2
+Java latency measures only the ping and pong exchange.
+.IP \(bu 2
+Bedrock tries resolved addresses in sequence.
+.IP \(bu 2
+By default, the tool rejects non-public addresses.
+Use
+.B --allow-private
+to allow them.
+.IP \(bu 2
+JSON latency uses whole milliseconds and has a minimum value of 1.
+.PP
+See
+.I docs/LIMITATIONS.md
+in the source repository for the complete limits and validation boundaries.
 .SH FILES
 .TP
 .I /usr/share/man/man1/minecraft-ping.1

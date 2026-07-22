@@ -1,11 +1,14 @@
 # Contributing
 
+This document uses ASD-STE100 Simplified Technical English.
+
 Thanks for considering a contribution.
 
 ## Before You Start
 
-- Keep changes focused. Small, reviewable pull requests merge faster.
-- Open an issue before large refactors or behavior changes so the direction can be aligned early.
+- Keep changes focused. Use a small pull request when possible.
+- Open an issue before a large refactor or behavior change. Get agreement on
+  the design before you start the change.
 - Use GitHub issues for bugs and feature work.
 - Use `minecraft-ping@omkhar.net` for support or usage questions that are not actionable bugs.
 - Do not use public issues for security reports. See [SECURITY.md](SECURITY.md).
@@ -47,7 +50,7 @@ make coverage
 make clean-repo
 ```
 
-If your environment already has the tools installed, it is also useful to run the same classes of checks enforced by CI:
+If your environment has these tools, run the same types of checks that CI runs:
 
 - `actionlint`
 - `gofmt`
@@ -79,7 +82,8 @@ make release-repro
 make package-smoke ARCH=amd64
 ```
 
-If you have `go-mutesting` installed locally, `make mutation` runs the supported non-`main` package mutation suite and is also a useful high-signal check for logic-heavy changes.
+If you have `go-mutesting`, `make mutation` runs the supported non-`main`
+package mutation suite. Run it for a change that has much decision logic.
 
 ## Portable Agent Instructions
 
@@ -112,4 +116,5 @@ This repository uses a small label set to keep triage clear:
 
 This project uses the Apache 2.0 inbound-equals-outbound model.
 
-By submitting a contribution, you agree that your work will be licensed under the Apache License, Version 2.0, under the same terms as the rest of the repository.
+When you submit a contribution, you agree to license it under the Apache License, Version 2.0.
+The same terms apply to the rest of the repository.

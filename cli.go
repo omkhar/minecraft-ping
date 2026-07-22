@@ -88,9 +88,9 @@ Options:
   -4                    use IPv4 only
   -6                    use IPv6 only
   -c count              stop after count probes
-  -i interval           wait interval seconds between probes
-  -w deadline           stop after deadline seconds
-  -W timeout            wait timeout seconds for each probe
+  -i interval           set the start-to-start interval in seconds
+  -w deadline           stop starting probes after deadline seconds
+  -W timeout            set socket I/O timeout after connection, in seconds
   -q                    quiet output
   -D                    print unix timestamp before each output line
   -n                    numeric output only

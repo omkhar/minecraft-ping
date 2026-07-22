@@ -1,11 +1,13 @@
 # Development
 
-This document is the maintainer and contributor on-ramp for local validation and release-path work.
+This document uses ASD-STE100 Simplified Technical English.
+
+This document tells maintainers and contributors how to validate a change.
 
 ## Prerequisites
 
 - Use the Go toolchain version declared in `go.mod`.
-- Before a release, verify that `go.mod` has already been updated to the latest stable Go patch release you intend to support.
+- Before a release, update `go.mod` to the latest stable Go patch release that you intend to support.
 - For the container-backed integration path, install Docker or Podman.
 - For full local parity checks, use an environment with working IPv4 and IPv6 loopback networking.
 
@@ -41,7 +43,8 @@ make agents-verify
 
 `make agents-verify` checks generated-surface drift only. It does not install or invoke LLM CLIs, and CI must not require provider API keys for agent-surface validation.
 
-If you have `deadcode` installed locally, run it before large refactors or cleanup-heavy changes:
+If you have `deadcode`, run it before a large refactor or a change that removes
+much code:
 
 ```bash
 make deadcode
@@ -55,7 +58,7 @@ make mutation
 
 That mutation entrypoint covers the supported non-`main` packages. The root CLI and command packages stay guarded by their focused unit tests, mutation-killer tests, and integration coverage.
 
-If you have the tools installed locally, it is also worth running the same classes of checks enforced by CI:
+If you have these tools, run the same types of checks that CI runs:
 
 - `actionlint`
 - `gofmt`
@@ -67,7 +70,7 @@ If you have the tools installed locally, it is also worth running the same class
 - `gosec`
 - `gitleaks`
 
-CI remains the source of truth for exact tool versions and matrix coverage.
+CI defines the required tool versions and matrix coverage.
 See [Runtime Versions](RUNTIME.md) for the current pins and the update procedure.
 
 If `mandoc` is available locally, it is also worth checking the man page source:
@@ -157,7 +160,7 @@ CONTAINER_CLI=podman scripts/release_linux_package_smoke.sh dist amd64
 ```
 
 This path validates installability and basic execution of the generated `.deb`, `.rpm`, and `.apk` packages.
-It also verifies that the packaged `minecraft-ping(1)` man page is installed.
+It also verifies the installed `minecraft-ping(1)` man page.
 The package smoke script also asserts that the shipped binary reports the expected stamped version.
 
 ## CI Coverage
@@ -179,10 +182,10 @@ Intel macOS (`amd64`) is no longer part of the release-path validation matrix. `
 
 ## Release Automation
 
-Releases are built from GitHub-verified signed, annotated tags at the current `main` head.
+GitHub Actions builds releases from GitHub-verified signed, annotated tags at the current `main` head.
 The workflow stages generated assets in a draft release and publishes that draft only after archive smoke, provenance, and SBOM checks pass.
 
-Maintainer flow:
+Maintainer procedure:
 
 1. Merge the release candidate to `main`.
 2. Wait for `Main Verify` to complete successfully on that commit.
@@ -191,6 +194,6 @@ Maintainer flow:
 
 Release outputs:
 
-- Signed release artifacts are always published.
-- The release workflow is configured to publish signed SPDX SBOM assets for each release.
-- GitHub artifact attestations and provenance bundles are published for public releases.
+- The release workflow always publishes signed release artifacts.
+- The release workflow publishes signed SPDX SBOM assets for each release.
+- The release workflow publishes GitHub artifact attestations and provenance bundles for public releases.

@@ -1,14 +1,17 @@
 # Releasing
 
-This document is the maintainer checklist for cutting a public release.
+This document uses ASD-STE100 Simplified Technical English.
+
+This document is the maintainer checklist for a public release.
 
 ## Before You Tag
 
 1. Confirm the repository is on the latest stable Go patch release you intend to support.
-   In practice, `go.mod` should already be set to that version before you cut the release.
+   Set `go.mod` to that version before you cut the release.
    Check the official release history at `https://go.dev/doc/devel/release`.
 2. Update docs, changelog entries, and any user-visible examples that changed.
-   Keep the public support matrix honest: current releases do not include `Darwin_amd64`; `v2.0.6` is the final release with an Intel macOS (`amd64`) archive.
+   Keep the public support matrix correct. Current releases do not include `Darwin_amd64`.
+   `v2.0.6` is the final release with an Intel macOS (`amd64`) archive.
 3. Run the local checks appropriate for the scope:
 
 ```bash
@@ -26,7 +29,7 @@ make release-repro
 make package-smoke ARCH=amd64
 ```
 
-## Cut The Release
+## Create The Release
 
 1. Merge the release candidate to `main`.
 2. Wait for `Main Verify` to complete successfully on that exact commit.
@@ -38,6 +41,7 @@ make package-smoke ARCH=amd64
 
 1. Inspect the GitHub release and confirm the expected archives, packages, checksums, SBOMs, and provenance assets are present.
 2. Spot-check at least one published artifact using the steps in [docs/release-verification.md](release-verification.md).
-3. Confirm the release notes and changelog are aligned.
+3. Confirm that the release notes match the changelog.
 4. If the public support or security process changed, make sure the repository landing pages still point to the right contact path.
-5. Confirm GitHub private vulnerability reporting is enabled so the public security workflow matches [SECURITY.md](../SECURITY.md).
+5. Confirm that the repository enables GitHub private vulnerability reporting.
+   This setting keeps the public security workflow consistent with [SECURITY.md](../SECURITY.md).

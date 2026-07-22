@@ -1,12 +1,15 @@
 # Architecture
 
-`minecraft-ping` is a small Go CLI that measures Minecraft server latency with `ping`-style ergonomics while staying honest about the underlying Minecraft protocols.
+This document uses ASD-STE100 Simplified Technical English.
+
+`minecraft-ping` is a small Go command that measures Minecraft server latency.
+Its text output is similar to Unix `ping`, but it uses Minecraft protocols.
 
 ## Design Principles
 
 - Keep the CLI familiar to people who already use Unix `ping`.
 - Keep Java and Bedrock transport logic separate and explicit.
-- Prefer simple data flow over layered abstractions.
+- Prefer simple data flow. Do not add an unnecessary abstraction layer.
 - Validate behavior with real release artifacts, not only `go run`.
 
 ## Runtime Model
@@ -16,7 +19,8 @@ The shipped binary has two top-level execution paths:
 - text mode: continuous by default, session-oriented, summary on exit
 - JSON mode: single probe, machine-readable output, intended for scripts
 
-Java Edition is the default. Bedrock Edition is selected explicitly with `--bedrock` or `--edition bedrock`. The CLI does not auto-detect editions.
+Java Edition is the default. Select Bedrock Edition with `--bedrock` or `--edition bedrock`.
+The CLI does not detect editions automatically.
 
 ## Repository Layout
 
@@ -34,6 +38,10 @@ Java Edition is the default. Bedrock Edition is selected explicitly with `--bedr
 - `protocol.go`: Java packet serialization and parsing
 - `cmd/staging-server`: portable staging backend used only for integration validation
 - `cmd/release-integration`: release-artifact integration harness
+
+See [Function Reference](FUNCTIONS.md) for every named production function.
+See [Limits and Failure Behavior](LIMITATIONS.md) for protocol and validation
+boundaries.
 
 ## Probe Flow
 
@@ -61,4 +69,5 @@ Java Edition is the default. Bedrock Edition is selected explicitly with `--bedr
 - Fuzz targets exercise Java packet parsing robustness.
 - `Main Verify` builds release archives and validates shipped binaries, not only source trees.
 - Release integration probes both Java and Bedrock over IPv4 and IPv6.
-- Linux release integration validates the container-backed path; macOS and Windows validate against the native staging backend.
+- Linux release integration validates the container-backed path.
+  macOS and Windows validate against the native staging backend.
