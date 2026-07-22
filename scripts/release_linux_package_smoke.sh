@@ -93,7 +93,7 @@ manpage_check='test -f /usr/share/man/man1/minecraft-ping.1 || test -f /usr/shar
 
 run_container_smoke \
   "debian" \
-  "debian:12" \
+  "debian:13@sha256:fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4" \
   "export DEBIAN_FRONTEND=noninteractive
    dpkg -i /dist/$deb_pkg
    ${manpage_check}
@@ -102,7 +102,7 @@ run_container_smoke \
 
 run_container_smoke \
   "fedora" \
-  "fedora:42" \
+  "fedora:44@sha256:6c75d5bf57cb0fa5aa4b92c6a83c86c791644496d9ac230de7711f5b8ec3b898" \
   "rpm -i --nosignature /dist/$rpm_pkg
    ${manpage_check}
    test \"\$(/usr/bin/minecraft-ping -V)\" = \"$expected_version_line\"
@@ -110,7 +110,7 @@ run_container_smoke \
 
 run_container_smoke \
   "alpine" \
-  "alpine:3.21" \
+  "alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b" \
   "apk add --no-cache --no-network --allow-untrusted --repositories-file /dev/null --force-non-repository /dist/$apk_pkg
    ${manpage_check}
    test \"\$(/usr/bin/minecraft-ping -V)\" = \"$expected_version_line\"

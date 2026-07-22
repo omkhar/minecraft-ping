@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -132,10 +133,8 @@ func TestWorkflowRuntimeParserDoesNotOmitDirectMatrixRunnerAxis(t *testing.T) {
 	if err != nil {
 		return
 	}
-	for _, runner := range runners {
-		if runner == "self-hosted" {
-			return
-		}
+	if slices.Contains(runners, "self-hosted") {
+		return
 	}
 	t.Fatalf("parseWorkflowRuntime silently omitted the direct matrix runner axis: %v", runners)
 }
