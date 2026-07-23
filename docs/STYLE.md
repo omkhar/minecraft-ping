@@ -29,3 +29,12 @@ exceptions preserve exact commands, URLs, identifiers, and sample output.
 
 A reviewer must check technical meaning and words that an automated test
 cannot classify. Automation does not prove full ASD-STE100 conformance.
+
+## Documentation coverage
+
+The live-document inventory includes the pull request template and all issue templates.
+It excludes the Apache License because legal text must stay exact.
+It excludes `AGENTS.md` because that file controls agents, not product users.
+It excludes the generated agent mirrors.
+The agent-surface verification checks the agent source and its generated
+mirrors.

@@ -5,11 +5,71 @@ This document uses ASD-STE100 Simplified Technical English.
 ASD-STE100 permits technical names. Function names, file names, commands, and
 data types are technical names.
 
-This reference covers each named function in production Go files and each
-named function in shipped shell scripts. It does not cover test-only helpers or
-anonymous functions.
+This reference separates supported user functions from implementation
+functions.
+The implementation catalog covers each named function in production Go files
+and shipped shell scripts.
+It does not cover test-only helpers or anonymous functions.
 
-## Command and option functions
+## Supported user functions
+
+The installed `minecraft-ping` command is the only supported user runtime.
+The project also supports the distribution functions in this section.
+
+### Command options
+
+| Option | Supported function |
+| --- | --- |
+| `-4` | It uses IPv4 only. |
+| `-6` | It uses IPv6 only. |
+| `-c count` | It sets a positive maximum probe count. |
+| `-i interval` | It sets the minimum probe start-to-start interval. |
+| `-w deadline` | It stops new probes after the session deadline. |
+| `-W timeout` | It sets the socket input and output timeout after connection. |
+| `-q` | It hides successful reply lines. It keeps the banner and summary. |
+| `-D` | It adds a Unix timestamp to each successful reply line. |
+| `-n` | It requests numeric address output. |
+| `-j` | It runs one probe. After a successful probe, it writes one JSON object. |
+| `--allow-private` | It permits targets in non-public address ranges. |
+| `-V`, `--version` | It writes the version and exits. |
+| `-h`, `--help` | It writes command help and exits. |
+| `--edition java|bedrock` | It selects Java Edition or Bedrock Edition. |
+| `--java` | It selects Java Edition. |
+| `--bedrock` | It selects Bedrock Edition. |
+
+### Other supported surfaces
+
+| Surface | Contract |
+| --- | --- |
+| `command.options` | The command-options table lists every flag that `cli.go` accepts. |
+| `command.no-subcommands` | The command has no subcommands. One process accepts one destination. |
+| `command.destination` | The destination accepts a host, a host and port, bracketed IPv6 with or without a port, or bare IPv6. |
+| `command.defaults` | Java and the automatic address family are defaults. The interval is one second. The timeout is five seconds. By default, there is no count. By default, there is no deadline. |
+| `command.precedence` | Without `--`, options can occur before or after the destination. After `--`, the destination must be the final argument. Explicit ports win. Do not use `-4` and `-6` together. Use only one of `--edition`, `--java`, and `--bedrock`. Do not combine `-j` with `-c`, `-i`, `-w`, `-q`, or `-D`. Conflicts return status `2`. |
+| `command.text-mode` | Text mode writes a banner and a final summary. Unless quiet, it writes successful replies. |
+| `command.json-mode` | JSON mode runs one probe. After a successful probe, it writes one object. |
+| `command.help` | Help writes usage to standard output and returns status `0`. |
+| `command.version` | Version writes the build version to standard output and returns status `0`. |
+| `command.output` | Normal results use standard output. Errors use standard error. The command ignores output-stream write errors. |
+| `command.exit-status` | Status `0` means success. Status `1` means a JSON probe failure, no text replies, or too few replies when count and deadline are both set. Status `2` means an argument or preparation failure. |
+| `network.java` | Java uses a status handshake and ping and pong over TCP. Its default port is `25565`. It uses SRV only for an implicit port. |
+| `network.bedrock` | Bedrock uses RakNet ping and pong over UDP. Its default IPv4 port is `19132`. Its default IPv6 port is `19133`. It does not use SRV. |
+| `network.address-selection` | The command resolves host names, filters non-public addresses, and applies automatic, IPv4, or IPv6 selection. |
+| `distribution.source-install` | Users can install the command with `go install`. |
+| `distribution.archives` | Releases contain macOS Arm64, Linux AMD64, Linux Arm64, Windows AMD64, and Windows Arm64 archives. macOS and Linux use `tar.gz`. Windows uses ZIP. |
+| `distribution.linux-packages` | Linux packages use DEB, RPM, and APK formats. |
+| `distribution.source-archive` | Releases include a `tar.gz` source archive. |
+| `distribution.verification-assets` | Releases include `checksums.txt`, Sigstore bundles, and signed SPDX SBOM files. Public releases also include GitHub provenance bundles. |
+| `runtime.pinned` | The runtime inventory records pinned tools, actions, runners, and container images. |
+| `deployment.none` | The project does not publish a production server or container. The staging server and container support validation only. |
+| `library.none` | The root is a `main` package. It does not expose a supported Go library API. |
+
+## Implementation function catalog
+
+These functions implement the command and repository validation.
+They are not a supported library API.
+
+### Command and option functions
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
@@ -37,7 +97,7 @@ anonymous functions.
 | `main.parseDestination` | It reads a host, host and port, bracketed IPv6 value, or bare IPv6 value. |
 | `main.versionLine` | It returns the program name and the build version. |
 
-## Session functions
+### Session functions
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
@@ -50,7 +110,7 @@ anonymous functions.
 | `main.writeSessionLine` | It writes one output line and can add a Unix timestamp. |
 | `main.formatAddrPort` | It returns an address and port, or `unknown` for an invalid address. |
 
-## Address and connection functions
+### Address and connection functions
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
@@ -94,7 +154,7 @@ anonymous functions.
 | `main.pingClient.dialCandidates` | It uses the configured delay between address attempts. It returns the first successful connection. |
 | `main.pingClient.dialCandidateAfterDelay` | It waits for its start delay and reports one connection result. |
 
-## Java probe and protocol functions
+### Java probe and protocol functions
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
@@ -122,7 +182,7 @@ anonymous functions.
 | `main.validateStringByteLength` | It rejects a string that exceeds the supplied limit or the signed 32-bit limit. |
 | `main.readStringFromBytes` | It reads one length-prefixed UTF-8 string within the supplied byte limit. |
 
-## Bedrock probe functions
+### Bedrock probe functions
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
@@ -144,7 +204,7 @@ anonymous functions.
 | `main.parseBedrockStatusText` | It parses the required Bedrock status fields and available optional fields. |
 | `main.ioErrUnexpectedEOF` | It returns a contextual unexpected-end error. |
 
-## Staging-server functions
+### Staging-server functions
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
@@ -183,7 +243,7 @@ anonymous functions.
 | `internal/stagingserver.ProbeBedrock` | It runs one Bedrock probe against a staging listener. |
 | `internal/stagingserver.parseBedrockPong` | It validates the staging Bedrock pong and expected timestamp. |
 
-## Release-integration functions
+### Release-integration functions
 
 These functions support repository validation. They are not part of the
 installed `minecraft-ping` command.
@@ -233,7 +293,7 @@ installed `minecraft-ping` command.
 | `cmd/release-integration.setDeadlineFromNow` | It sets a connection deadline from the current time. |
 | `cmd/release-integration.setUDPRelayDeadline` | It sets the fixed UDP relay deadline. |
 
-## Script functions
+### Script functions
 
 | Function | Input, result, and failure behavior |
 | --- | --- |

@@ -92,7 +92,7 @@ Options:
   -w deadline           stop starting probes after deadline seconds
   -W timeout            set socket I/O timeout after connection, in seconds
   -q                    quiet output
-  -D                    print unix timestamp before each output line
+  -D                    print unix timestamp before each reply line
   -n                    numeric output only
   -j                    JSON output (single probe)
   --allow-private       allow private, loopback, and local-only IP targets

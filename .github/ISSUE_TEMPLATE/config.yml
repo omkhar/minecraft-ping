@@ -1,8 +1,10 @@
+# This document uses ASD-STE100 Simplified Technical English.
+
 blank_issues_enabled: false
 contact_links:
   - name: Support request
     url: mailto:minecraft-ping@omkhar.net
-    about: Ask usage or operational questions without opening a public issue.
+    about: Ask questions about use or operation. Do not open a public issue.
   - name: Security issue
     url: https://github.com/omkhar/minecraft-ping/security/advisories/new
-    about: Report suspected vulnerabilities privately through GitHub security advisories instead of opening a public issue.
+    about: Report a suspected vulnerability through a private GitHub security advisory.
