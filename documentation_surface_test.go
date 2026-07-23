@@ -141,6 +141,43 @@ func TestFunctionCatalogComparisonRejectsDrift(t *testing.T) {
 	}
 }
 
+func TestProductionFunctionsIgnoreVendoredModules(t *testing.T) {
+	root := t.TempDir()
+	for _, directory := range []string{
+		filepath.Join(root, "scripts"),
+		filepath.Join(root, "vendor", "example.com", "dependency"),
+	} {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, source := range map[string]string{
+		filepath.Join(root, "owned.go"):                                             "package owned\n\nfunc Owned() {}\n",
+		filepath.Join(root, "vendor", "example.com", "dependency", "dependency.go"): "package dependency\n\nfunc Vendored() {}\n",
+	} {
+		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	functions, err := productionFunctions(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundOwned := false
+	for _, function := range functions {
+		if strings.HasSuffix(function, ".Vendored") {
+			t.Fatalf("productionFunctions included vendored function %q", function)
+		}
+		if strings.HasSuffix(function, ".Owned") {
+			foundOwned = true
+		}
+	}
+	if !foundOwned {
+		t.Fatal("productionFunctions did not include the repository-owned function")
+	}
+}
+
 func TestDocumentedLimitsCoverEnforcedConstants(t *testing.T) {
 	t.Parallel()
 
@@ -553,7 +590,7 @@ func productionFunctions(root string) ([]string, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			if path != root && (entry.Name() == ".git" || entry.Name() == "dist") {
+			if path != root && (entry.Name() == ".git" || entry.Name() == "dist" || entry.Name() == "vendor") {
 				return filepath.SkipDir
 			}
 			return nil
