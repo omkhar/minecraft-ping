@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -961,7 +962,7 @@ func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 		t.Errorf("cmd/release-integration.runProbe description = %q, want %q", got, runProbeDescription)
 	}
 
-	const resolveJavaRouteDescription = "It checks SRV only for a host name without an explicit port. It uses only the first SRV result when that result is valid. It uses the default route after a non-context lookup failure, an invalid first result, or an absent result while the context remains active. It returns a context cancellation error."
+	const resolveJavaRouteDescription = "It checks SRV only for an implicit-port host name. It inspects only the first result. It uses that result only when its trimmed target is nonempty and its port is nonzero. When the lookup fails or returns no records, the function returns `ctx.Err()` when it is nonnil. Otherwise, it uses the default route."
 	if got := descriptions["main.pingClient.resolveJavaRouteContext"]; got != resolveJavaRouteDescription {
 		t.Errorf("main.pingClient.resolveJavaRouteContext description = %q, want %q", got, resolveJavaRouteDescription)
 	}
@@ -980,10 +981,38 @@ func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 	if route.Dial != defaultRoute || route.Handshake != defaultRoute {
 		t.Fatalf("route after invalid first SRV result = %+v, want default route %+v", route, defaultRoute)
 	}
+	lookupFailure := errors.New("lookup failure")
+	failedRoute, err := (pingClient{resolver: &stubResolver{srvErr: lookupFailure}}).resolveJavaRouteContext(context.Background(), target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if failedRoute.Dial != defaultRoute || failedRoute.Handshake != defaultRoute {
+		t.Fatalf("route after non-context SRV failure = %+v, want default route %+v", failedRoute, defaultRoute)
+	}
+	canceledContext, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := (pingClient{resolver: &stubResolver{}}).resolveJavaRouteContext(canceledContext, target); !errors.Is(err, context.Canceled) {
+		t.Fatalf("empty SRV result with canceled context error = %v, want %v", err, context.Canceled)
+	}
 
 	const newBedrockClientDescription = "It creates the standard ping client for Bedrock."
 	if got := descriptions["main.newBedrockClient"]; got != newBedrockClientDescription {
 		t.Errorf("main.newBedrockClient description = %q, want %q", got, newBedrockClientDescription)
+	}
+
+	const randomUint64Description = "It gives an eight-byte zeroed buffer to the supplied callback. It ignores the returned byte count. It returns zero and wraps a callback error. Otherwise, it converts the full buffer to a big-endian 64-bit value."
+	if got := descriptions["main.randomUint64With"]; got != randomUint64Description {
+		t.Errorf("main.randomUint64With description = %q, want %q", got, randomUint64Description)
+	}
+	randomValue, err := randomUint64With(func(buffer []byte) (int, error) {
+		if len(buffer) != 8 {
+			t.Fatalf("random callback buffer length = %d, want 8", len(buffer))
+		}
+		buffer[0] = 0x12
+		return 1, nil
+	})
+	if err != nil || randomValue != 0x1200000000000000 {
+		t.Fatalf("randomUint64With short read = 0x%x, %v", randomValue, err)
 	}
 }
 

@@ -164,7 +164,7 @@ They are not a supported library API.
 | `main.javaPreparedProbe.summaryLabel` | It returns the host or the numeric address for the summary. |
 | `main.javaPreparedProbe.observeSample` | It saves a valid remote address from a successful probe. |
 | `main.javaPreparedProbe.probe` | It runs one prepared Java exchange. |
-| `main.pingClient.resolveJavaRouteContext` | It checks SRV only for a host name without an explicit port. It uses only the first SRV result when that result is valid. It uses the default route after a non-context lookup failure, an invalid first result, or an absent result while the context remains active. It returns a context cancellation error. |
+| `main.pingClient.resolveJavaRouteContext` | It checks SRV only for an implicit-port host name. It inspects only the first result. It uses that result only when its trimmed target is nonempty and its port is nonzero. When the lookup fails or returns no records, the function returns `ctx.Err()` when it is nonnil. Otherwise, it uses the default route. |
 | `main.pingClient.pingJavaPreparedContext` | It connects and then applies the socket deadline. It validates status and measures the ping and pong exchange. |
 | `main.remoteAddrPort` | It converts a network address to `netip.AddrPort`. It returns an invalid value on failure. |
 | `main.generatePingToken` | It creates a cryptographically random 64-bit ping token. |
@@ -199,7 +199,7 @@ They are not a supported library API.
 | `main.pingBedrockCandidate` | It connects and then applies the socket deadline. It sends one RakNet ping and validates a pong of at most 2,048 bytes. |
 | `main.buildBedrockStatusRequest` | It makes a RakNet unconnected-ping request with a random client identifier. |
 | `main.buildBedrockStatusRequestWith` | It makes the request with an injected random-byte reader. |
-| `main.randomUint64With` | It reads eight random bytes and returns a 64-bit value. |
+| `main.randomUint64With` | It gives an eight-byte zeroed buffer to the supplied callback. It ignores the returned byte count. It returns zero and wraps a callback error. Otherwise, it converts the full buffer to a big-endian 64-bit value. |
 | `main.parseBedrockStatusResponse` | It checks the packet ID, timestamp, magic, exact length, UTF-8 data, and status text. |
 | `main.parseBedrockStatusText` | It parses the required Bedrock status fields and available optional fields. |
 | `main.ioErrUnexpectedEOF` | It returns a contextual unexpected-end error. |
