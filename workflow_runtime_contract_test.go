@@ -131,7 +131,7 @@ func TestWorkflowRuntimeParserDoesNotOmitDirectMatrixRunnerAxis(t *testing.T) {
 `
 	_, runners, err := parseWorkflowRuntime(workflow)
 	if err != nil {
-		return
+		t.Fatalf("parseWorkflowRuntime rejected a direct matrix runner axis: %v", err)
 	}
 	if slices.Contains(runners, "self-hosted") {
 		return
