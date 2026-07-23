@@ -217,7 +217,7 @@ installed `minecraft-ping` command.
 | `cmd/release-integration.waitForJava` | It waits for one Java listener to accept a valid probe. |
 | `cmd/release-integration.waitForBedrock` | It waits for one Bedrock listener to accept a valid probe. |
 | `cmd/release-integration.waitForListener` | It retries a listener probe until success, timeout, or cancellation. |
-| `cmd/release-integration.runProbe` | It runs one JSON probe and validates its server and positive latency. |
+| `cmd/release-integration.runProbe` | It runs one JSON probe and decodes the result. |
 | `cmd/release-integration.formatProbeTimeout` | It converts the harness timeout to decimal seconds for the command. |
 | `cmd/release-integration.setIPv6Only` | It enables IPv6-only listener behavior on Unix. It returns an unsupported error on Windows. |
 | `cmd/release-integration.ipv6OnlyControl` | It returns a network control function that applies IPv6-only behavior. |

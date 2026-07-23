@@ -292,6 +292,11 @@ func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 	if err := newTargetSpec("example.com", 0, true).validate(); err == nil {
 		t.Fatal("invalid explicit-port target contract changed")
 	}
+
+	const runProbeDescription = "It runs one JSON probe and decodes the result."
+	if got := descriptions["cmd/release-integration.runProbe"]; got != runProbeDescription {
+		t.Errorf("cmd/release-integration.runProbe description = %q, want %q", got, runProbeDescription)
+	}
 }
 
 func controlledStyleFindings(document string) []string {
