@@ -265,6 +265,38 @@ func TestDurationDocumentationMatchesExponentSyntax(t *testing.T) {
 	}
 }
 
+func TestArgumentOrderDocumentationMatchesParser(t *testing.T) {
+	t.Parallel()
+
+	raw, status := scanArgv([]string{"example.com", "-c", "1"})
+	if status != parseStatusOK || raw.destination != "example.com" || raw.count != "1" {
+		t.Fatalf("scanArgv() after-destination option = %#v, %v", raw, status)
+	}
+	if _, status := scanArgv([]string{"--", "example.com", "-c", "1"}); status != parseStatusInvalid {
+		t.Fatalf("scanArgv() accepted an argument after the -- destination: %v", status)
+	}
+
+	for _, path := range []string{
+		"docs/FUNCTIONS.md",
+		"docs/LIMITATIONS.md",
+		"docs/cli-reference.md",
+		"man/minecraft-ping.1",
+	} {
+		data, err := os.ReadFile(filepath.FromSlash(path))
+		if err != nil {
+			t.Errorf("read %s: %v", path, err)
+			continue
+		}
+		document := string(data)
+		if !strings.Contains(document, "before or after the destination") {
+			t.Errorf("%s does not document regular option order", path)
+		}
+		if !strings.Contains(document, "final argument") {
+			t.Errorf("%s does not document the -- destination boundary", path)
+		}
+	}
+}
+
 func TestCLIReferenceAndManPageCoverEveryOption(t *testing.T) {
 	t.Parallel()
 

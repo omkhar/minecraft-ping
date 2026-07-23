@@ -41,6 +41,8 @@ minecraft-ping [options] destination
 
 - `-i`, `-w`, and `-W` accept decimal seconds from one nanosecond through `9,223,372,036.854775807` seconds.
 - The duration parser accepts exponent notation. For example, `1e1` is 10 seconds.
+- Without `--`, options can occur before or after the destination. Only one destination is valid.
+- After `--`, one destination must be the final argument.
 - The default interval is one second. The default probe timeout is five seconds.
 - `-W` must be less than or equal to `30` seconds.
 - `-W` does not limit DNS work or connection setup. It limits socket input and output after a connection succeeds.

@@ -39,8 +39,9 @@ and data types are technical names.
   sensitive.
 - JSON mode makes one probe. Do not combine it with `-c`, `-i`, `-w`, `-q`, or
   `-D`.
-- `--` can occur before the destination. No argument can occur after that
-  destination.
+- Without `--`, options can occur before or after the destination. Only one
+  destination is valid.
+- After `--`, one destination must be the final argument.
 - Help returns status `0`. Invalid arguments print help to standard error and
   return status `2`.
 - Version output does not require a destination.

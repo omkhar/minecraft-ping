@@ -19,7 +19,7 @@ anonymous functions.
 | `main.defaultCLIRuntime` | It creates the signal context, probe function, clock, and sleep function for the command. |
 | `main.usageText` | It returns the complete command help text. |
 | `main.parseCLIConfig` | It scans the arguments and returns a normalized command configuration. |
-| `main.scanArgv` | It reads each argument. It rejects unknown options, empty arguments, and extra destinations. |
+| `main.scanArgv` | It reads options before or after the destination. It permits only one destination. After `--`, it requires the destination as the final argument. It rejects unknown options and empty arguments. |
 | `main.consumeLongFlag` | It reads one long option and its value. It rejects an unsupported form. |
 | `main.consumeShortFlags` | It reads one short-option group and any required value. It rejects an unsupported option. |
 | `main.normalizeCLIConfig` | It applies defaults and checks option conflicts, values, the edition, and the destination. |
