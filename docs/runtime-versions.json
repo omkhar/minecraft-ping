@@ -1,0 +1,117 @@
+{
+  "go": "1.26.5",
+  "staging_container": {
+    "image": "golang",
+    "tag": "1.26.5-bookworm",
+    "digest": "1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651"
+  },
+  "package_smoke_containers": {
+    "alpine": {
+      "image": "alpine",
+      "tag": "3.24",
+      "digest": "28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
+    },
+    "debian": {
+      "image": "debian",
+      "tag": "13",
+      "digest": "fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4"
+    },
+    "fedora": {
+      "image": "fedora",
+      "tag": "44",
+      "digest": "6c75d5bf57cb0fa5aa4b92c6a83c86c791644496d9ac230de7711f5b8ec3b898"
+    }
+  },
+  "runners": [
+    "ubuntu-24.04",
+    "ubuntu-24.04-arm",
+    "macos-26",
+    "windows-2025",
+    "windows-11-arm"
+  ],
+  "actions": {
+    "actions/attest-build-provenance": {
+      "version": "v4.1.1",
+      "sha": "0f67c3f4856b2e3261c31976d6725780e5e4c373"
+    },
+    "actions/cache": {
+      "version": "v6.1.0",
+      "sha": "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+    },
+    "actions/checkout": {
+      "version": "v7.0.1",
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1"
+    },
+    "actions/dependency-review-action": {
+      "version": "v5.0.0",
+      "sha": "a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+    },
+    "actions/download-artifact": {
+      "version": "v8.0.1",
+      "sha": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+    },
+    "actions/labeler": {
+      "version": "v7.0.0",
+      "sha": "bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13"
+    },
+    "actions/setup-go": {
+      "version": "v7.0.0",
+      "sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e"
+    },
+    "actions/upload-artifact": {
+      "version": "v7.0.1",
+      "sha": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    },
+    "github/codeql-action/analyze": {
+      "version": "v4.37.3",
+      "sha": "e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81"
+    },
+    "github/codeql-action/autobuild": {
+      "version": "v4.37.3",
+      "sha": "e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81"
+    },
+    "github/codeql-action/init": {
+      "version": "v4.37.3",
+      "sha": "e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81"
+    },
+    "github/codeql-action/upload-sarif": {
+      "version": "v4.37.3",
+      "sha": "e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81"
+    },
+    "goreleaser/goreleaser-action": {
+      "version": "v7.2.3",
+      "sha": "f06c13b6b1a9625abc9e6e439d9c05a8f2190e94"
+    },
+    "ossf/scorecard-action": {
+      "version": "v2.4.3",
+      "sha": "4eaacf0543bb3f2c246792bd56e8cdeffafb205a"
+    },
+    "release-drafter/release-drafter": {
+      "version": "v7.6.0",
+      "sha": "eada3c96a64734dd381cfbda23511034e328ddb0"
+    },
+    "sigstore/cosign-installer": {
+      "version": "v4.1.2",
+      "sha": "6f9f17788090df1f26f669e9d70d6ae9567deba6"
+    },
+    "zizmorcore/zizmor-action": {
+      "version": "v0.6.0",
+      "sha": "6599ee8b7a49aef6a770f63d261d214911a7ce02"
+    }
+  },
+  "tools": {
+    "actionlint": "v1.7.12",
+    "cosign": "v3.1.2",
+    "deadcode": "v0.48.0",
+    "gitleaks": "v8.30.1",
+    "gocritic": "v0.14.4",
+    "goimports": "v0.48.0",
+    "go-mutesting": "v0.0.0-20251226130216-48d0401f00fb",
+    "goreleaser": "v2.17.0",
+    "gosec": "v2.28.0",
+    "govulncheck": "v1.6.0",
+    "ineffassign": "v0.2.0",
+    "staticcheck": "v0.7.0",
+    "syft": "v1.49.0"
+  }
+}

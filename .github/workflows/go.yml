@@ -12,13 +12,13 @@ concurrency:
 permissions: {}
 
 env:
-  ACTIONLINT_VERSION: v1.7.11
-  DEADCODE_VERSION: v0.43.0
+  ACTIONLINT_VERSION: v1.7.12
+  DEADCODE_VERSION: v0.48.0
   GITLEAKS_VERSION: v8.30.1
-  GOCRITIC_VERSION: v0.14.3
-  GOIMPORTS_MODULE_VERSION: v0.43.0
-  GOVULNCHECK_VERSION: v1.1.4
-  GOSEC_VERSION: v2.24.7
+  GOCRITIC_VERSION: v0.14.4
+  GOIMPORTS_MODULE_VERSION: v0.48.0
+  GOVULNCHECK_VERSION: v1.6.0
+  GOSEC_VERSION: v2.28.0
   INEFFASSIGN_VERSION: v0.2.0
   STATICCHECK_VERSION: v0.7.0
   GOTOOLCHAIN: auto
@@ -26,17 +26,17 @@ env:
 jobs:
   ci-lint:
     name: ci-lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read # Read referenced action metadata during workflow auditing.
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -123,23 +123,23 @@ jobs:
       - name: Run gocritic
         run: '"$(go env GOPATH)/bin/gocritic" check ./...'
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
+        uses: zizmorcore/zizmor-action@6599ee8b7a49aef6a770f63d261d214911a7ce02 # v0.6.0
         with:
           advanced-security: false
           persona: auditor
 
   ci-security:
     name: ci-security
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -172,15 +172,15 @@ jobs:
 
   ci-test:
     name: ci-test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -201,23 +201,23 @@ jobs:
       matrix:
         include:
           - name: linux-amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - name: linux-arm64
             runner: ubuntu-24.04-arm
           - name: macos-arm64
-            runner: macos-latest
+            runner: macos-26
           - name: windows-amd64
-            runner: windows-latest
+            runner: windows-2025
           - name: windows-arm64
             runner: windows-11-arm
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -231,16 +231,16 @@ jobs:
       - ci-security
       - ci-test
       - ci-test-platforms
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: false
@@ -253,7 +253,7 @@ jobs:
           goreleaser_version="$(bash scripts/read_goreleaser_version.sh)"
           GOTOOLCHAIN="$(go env GOVERSION)" go install "github.com/goreleaser/goreleaser/v2@${goreleaser_version}"
       - name: Build snapshot release artifacts
-        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
           version: ${{ steps.goreleaser_version.outputs.value }}
@@ -279,13 +279,13 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Download snapshot release artifacts
@@ -307,7 +307,7 @@ jobs:
       matrix:
         include:
           - name: linux-amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             backend: container
             artifact_glob: minecraft-ping_*_Linux_amd64.tar.gz
             binary_name: minecraft-ping
@@ -317,12 +317,12 @@ jobs:
             artifact_glob: minecraft-ping_*_Linux_arm64.tar.gz
             binary_name: minecraft-ping
           - name: macos-arm64
-            runner: macos-latest
+            runner: macos-26
             backend: binary
             artifact_glob: minecraft-ping_*_Darwin_arm64.tar.gz
             binary_name: minecraft-ping
           - name: windows-amd64
-            runner: windows-latest
+            runner: windows-2025
             backend: binary
             artifact_glob: minecraft-ping_*_Windows_amd64.zip
             binary_name: minecraft-ping.exe
@@ -334,11 +334,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
