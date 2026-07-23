@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -957,6 +959,31 @@ func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 	const runProbeDescription = "It runs one JSON probe and decodes the result."
 	if got := descriptions["cmd/release-integration.runProbe"]; got != runProbeDescription {
 		t.Errorf("cmd/release-integration.runProbe description = %q, want %q", got, runProbeDescription)
+	}
+
+	const resolveJavaRouteDescription = "It checks SRV only for a host name without an explicit port. It uses only the first SRV result when that result is valid. It uses the default route after a non-context lookup failure, an invalid first result, or an absent result while the context remains active. It returns a context cancellation error."
+	if got := descriptions["main.pingClient.resolveJavaRouteContext"]; got != resolveJavaRouteDescription {
+		t.Errorf("main.pingClient.resolveJavaRouteContext description = %q, want %q", got, resolveJavaRouteDescription)
+	}
+	resolver := &stubResolver{
+		srvRecords: []*net.SRV{
+			{Target: "", Port: 25570},
+			{Target: "second.example.net.", Port: 25571},
+		},
+	}
+	target := newTargetSpec("mc.example.com", 0, false)
+	route, err := (pingClient{resolver: resolver}).resolveJavaRouteContext(context.Background(), target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultRoute := target.fallbackEndpoint(addressFamilyAny, editionJava)
+	if route.Dial != defaultRoute || route.Handshake != defaultRoute {
+		t.Fatalf("route after invalid first SRV result = %+v, want default route %+v", route, defaultRoute)
+	}
+
+	const newBedrockClientDescription = "It creates the standard ping client for Bedrock."
+	if got := descriptions["main.newBedrockClient"]; got != newBedrockClientDescription {
+		t.Errorf("main.newBedrockClient description = %q, want %q", got, newBedrockClientDescription)
 	}
 }
 

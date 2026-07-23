@@ -164,7 +164,7 @@ They are not a supported library API.
 | `main.javaPreparedProbe.summaryLabel` | It returns the host or the numeric address for the summary. |
 | `main.javaPreparedProbe.observeSample` | It saves a valid remote address from a successful probe. |
 | `main.javaPreparedProbe.probe` | It runs one prepared Java exchange. |
-| `main.pingClient.resolveJavaRouteContext` | It uses the first valid SRV result only for a host without an explicit port. |
+| `main.pingClient.resolveJavaRouteContext` | It checks SRV only for a host name without an explicit port. It uses only the first SRV result when that result is valid. It uses the default route after a non-context lookup failure, an invalid first result, or an absent result while the context remains active. It returns a context cancellation error. |
 | `main.pingClient.pingJavaPreparedContext` | It connects and then applies the socket deadline. It validates status and measures the ping and pong exchange. |
 | `main.remoteAddrPort` | It converts a network address to `netip.AddrPort`. It returns an invalid value on failure. |
 | `main.generatePingToken` | It creates a cryptographically random 64-bit ping token. |
@@ -186,7 +186,7 @@ They are not a supported library API.
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
-| `main.newBedrockClient` | It creates the standard shared client for Bedrock. |
+| `main.newBedrockClient` | It creates the standard ping client for Bedrock. |
 | `main.prepareBedrockProbe` | It resolves Bedrock candidates before the session starts. |
 | `main.bedrockPreparedProbe.banner` | It returns the Bedrock session banner. Numeric mode can keep the host name when multiple candidates exist. |
 | `main.bedrockPreparedProbe.summaryLabel` | It returns the host or the numeric address for the summary. |
