@@ -60,6 +60,10 @@ var runtimeToolNames = []string{
 	"syft",
 }
 
+var stagingBuildContainerPattern = regexp.MustCompile(
+	`(?m)^FROM ([^:@\s]+):([^@\s]+)@sha256:([0-9a-f]{64}) AS build\r?$`,
+)
+
 func TestRuntimeManifestRejectsMutableOrMalformedPins(t *testing.T) {
 	validSHA := "3d3c42e5aac5ba805825da76410c181273ba90b1"
 	validDigest := "1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651"
@@ -180,8 +184,7 @@ func TestRuntimeManifestMatchesRepository(t *testing.T) {
 	}
 
 	dockerfile := mustReadDocumentationFile(t, "docker/staging-minecraft.Dockerfile")
-	containerPattern := regexp.MustCompile(`(?m)^FROM ([^:@\s]+):([^@\s]+)@sha256:([0-9a-f]{64}) AS build$`)
-	container := containerPattern.FindStringSubmatch(dockerfile)
+	container := stagingBuildContainerPattern.FindStringSubmatch(dockerfile)
 	if len(container) != 4 {
 		t.Fatal("staging Dockerfile does not use a pinned build container")
 	}
@@ -406,6 +409,25 @@ func TestGoDirectiveVersionHandlesWindowsLineEndings(t *testing.T) {
 		if got := goDirectiveVersion(content); got != "1.26.5" {
 			t.Fatalf("goDirectiveVersion() = %q, want 1.26.5", got)
 		}
+	}
+}
+
+func TestStagingBuildContainerPatternHandlesLineEndings(t *testing.T) {
+	digest := strings.Repeat("a", 64)
+	line := "FROM golang:1.26.5-bookworm@sha256:" + digest + " AS build"
+	for name, content := range map[string]string{
+		"LF":   line + "\n",
+		"CRLF": line + "\r\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			match := stagingBuildContainerPattern.FindStringSubmatch(content)
+			if len(match) != 4 {
+				t.Fatalf("FindStringSubmatch() = %q, want four fields", match)
+			}
+			if match[1] != "golang" || match[2] != "1.26.5-bookworm" || match[3] != digest {
+				t.Fatalf("FindStringSubmatch() = %q, want pinned golang container", match)
+			}
+		})
 	}
 }
 
