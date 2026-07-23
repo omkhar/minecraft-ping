@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 var liveDocumentationPaths = []string{
@@ -231,6 +232,35 @@ func TestDocumentedBehaviorCoversNonobviousBoundaries(t *testing.T) {
 	} {
 		if !strings.Contains(limits, required) {
 			t.Errorf("docs/LIMITATIONS.md does not state behavior boundary %q", required)
+		}
+	}
+}
+
+func TestDurationDocumentationMatchesExponentSyntax(t *testing.T) {
+	t.Parallel()
+
+	duration, ok := parseSecondsDuration("1e1")
+	if !ok || duration != 10*time.Second {
+		t.Fatalf("parseSecondsDuration(1e1) = %s, %t, want 10s, true", duration, ok)
+	}
+
+	for _, path := range []string{
+		"docs/FUNCTIONS.md",
+		"docs/LIMITATIONS.md",
+		"docs/cli-reference.md",
+		"man/minecraft-ping.1",
+	} {
+		data, err := os.ReadFile(filepath.FromSlash(path))
+		if err != nil {
+			t.Errorf("read %s: %v", path, err)
+			continue
+		}
+		document := string(data)
+		if !strings.Contains(document, "accepts exponent notation") {
+			t.Errorf("%s does not document accepted exponent notation", path)
+		}
+		if strings.Contains(document, "rejects exponent") {
+			t.Errorf("%s incorrectly documents rejected exponent notation", path)
 		}
 	}
 }

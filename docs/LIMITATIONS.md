@@ -26,12 +26,12 @@ and data types are technical names.
 - A count must be a positive integer.
 - A count must fit the Go `int` type. All current release targets use a 64-bit
   `int`.
-- An interval, deadline, or timeout must use decimal seconds. The minimum is
-  one nanosecond.
+- An interval, deadline, or timeout must specify seconds. The minimum is one
+  nanosecond.
+- The parser accepts exponent notation. For example, `1e1` is 10 seconds.
 - The largest duration is `9,223,372,036.854775807` seconds. This value is
   `9,223,372,036,854,775,807` nanoseconds, which is the `int64` limit.
-- The parser rejects a nonfinite value, an exponent form, zero, and a negative
-  value.
+- The parser rejects a nonfinite value, zero, and a negative value.
 - The maximum probe timeout is 30 seconds.
 - Do not use `-4` and `-6` together.
 - Use only one of `--edition`, `--java`, and `--bedrock`.

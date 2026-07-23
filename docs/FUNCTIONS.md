@@ -23,7 +23,7 @@ anonymous functions.
 | `main.consumeLongFlag` | It reads one long option and its value. It rejects an unsupported form. |
 | `main.consumeShortFlags` | It reads one short-option group and any required value. It rejects an unsupported option. |
 | `main.normalizeCLIConfig` | It applies defaults and checks option conflicts, values, the edition, and the destination. |
-| `main.parseSecondsDuration` | It converts decimal seconds from one nanosecond through the `int64` limit. It rejects nonfinite and exponent values. |
+| `main.parseSecondsDuration` | It converts seconds from one nanosecond through the `int64` limit. It accepts exponent notation. It rejects nonfinite, zero, and negative values. |
 | `main.durationToLatencyMs` | It converts a duration to whole milliseconds. It returns at least `1`. |
 | `main.edition.String` | It returns `java` or `bedrock`. |
 | `main.parseEdition` | It reads an empty value or `java` as Java. It reads `bedrock` as Bedrock and rejects other values. |
