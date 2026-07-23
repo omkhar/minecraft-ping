@@ -164,7 +164,7 @@ They are not a supported library API.
 | `main.javaPreparedProbe.summaryLabel` | It returns the host or the numeric address for the summary. |
 | `main.javaPreparedProbe.observeSample` | It saves a valid remote address from a successful probe. |
 | `main.javaPreparedProbe.probe` | It runs one prepared Java exchange. |
-| `main.pingClient.resolveJavaRouteContext` | It checks SRV only for an implicit-port host name. It inspects only the first result. It uses that result only when its trimmed target is nonempty and its port is nonzero. When the lookup fails or returns no records, the function returns `ctx.Err()` when it is nonnil. Otherwise, it uses the default route. |
+| `main.pingClient.resolveJavaRouteContext` | It checks SRV only for an implicit-port host name. It inspects only the first result. It uses that result only when the target, after removal of one trailing dot, is nonempty and the port is nonzero. When the lookup fails or returns no records, the function returns `ctx.Err()` when it is nonnil. Otherwise, it uses the default route. |
 | `main.pingClient.pingJavaPreparedContext` | It connects and then applies the socket deadline. It validates status and measures the ping and pong exchange. |
 | `main.remoteAddrPort` | It converts a network address to `netip.AddrPort`. It returns an invalid value on failure. |
 | `main.generatePingToken` | It creates a cryptographically random 64-bit ping token. |

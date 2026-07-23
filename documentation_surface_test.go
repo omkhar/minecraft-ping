@@ -962,7 +962,7 @@ func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 		t.Errorf("cmd/release-integration.runProbe description = %q, want %q", got, runProbeDescription)
 	}
 
-	const resolveJavaRouteDescription = "It checks SRV only for an implicit-port host name. It inspects only the first result. It uses that result only when its trimmed target is nonempty and its port is nonzero. When the lookup fails or returns no records, the function returns `ctx.Err()` when it is nonnil. Otherwise, it uses the default route."
+	const resolveJavaRouteDescription = "It checks SRV only for an implicit-port host name. It inspects only the first result. It uses that result only when the target, after removal of one trailing dot, is nonempty and the port is nonzero. When the lookup fails or returns no records, the function returns `ctx.Err()` when it is nonnil. Otherwise, it uses the default route."
 	if got := descriptions["main.pingClient.resolveJavaRouteContext"]; got != resolveJavaRouteDescription {
 		t.Errorf("main.pingClient.resolveJavaRouteContext description = %q, want %q", got, resolveJavaRouteDescription)
 	}
