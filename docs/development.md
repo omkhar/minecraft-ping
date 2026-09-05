@@ -68,6 +68,7 @@ If you have the tools installed locally, it is also worth running the same class
 - `gitleaks`
 
 CI remains the source of truth for exact tool versions and matrix coverage.
+See [Runtime Versions](RUNTIME.md) for the current pins and the update procedure.
 
 If `mandoc` is available locally, it is also worth checking the man page source:
 

@@ -7,6 +7,9 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Updated Go, the staging image, CI tools, GitHub Actions, and fixed runner labels.
+- Added a machine-checked runtime reference.
+
 ## v2.0.7 - 2026-07-01
 
 - Bumped Go toolchain to `1.26.4` (`go.mod` and the staging container image) to stay on the latest stable patch release.
