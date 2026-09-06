@@ -10,6 +10,7 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 ## Unreleased
 
 - Made the release workflow delete stale same-tag draft releases before it stages assets. This prevents the publication of a leftover draft with old artifacts.
+- Removed the Dependabot auto-merge workflow and its bot-approval token. Branch rules now require green checks and signatures, not review counts, which fits a single-maintainer repository.
 
 ## v2.0.8 - 2026-09-06
 
