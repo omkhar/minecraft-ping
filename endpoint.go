@@ -3,9 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
-	"strconv"
 	"strings"
 )
 
@@ -25,7 +23,6 @@ const (
 type pingOptions struct {
 	addressFamily         addressFamily
 	allowPrivateAddresses bool
-	edition               edition
 }
 
 var nonPublicIPPrefixes = []netip.Prefix{
@@ -155,10 +152,6 @@ func unbracketIPv6Literal(host string) (string, bool) {
 	return literal, true
 }
 
-func (e endpoint) String() string {
-	return net.JoinHostPort(e.Host, strconv.Itoa(e.Port))
-}
-
 func (e endpoint) uint16Port() (uint16, error) {
 	return toUint16(e.Port)
 }
@@ -170,19 +163,6 @@ func (e endpoint) literalIP() (netip.Addr, bool) {
 	}
 
 	return addr.Unmap(), true
-}
-
-func (e endpoint) validate() error {
-	if e.Host == "" {
-		return errors.New("server must not be empty")
-	}
-	if err := validateServerAddress(e.Host); err != nil {
-		return err
-	}
-	if e.Port < 1 || e.Port > 65535 {
-		return fmt.Errorf("invalid port: %d. port must be between 1 and 65535", e.Port)
-	}
-	return nil
 }
 
 func validateServerAddress(server string) error {

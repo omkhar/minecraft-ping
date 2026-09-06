@@ -81,117 +81,6 @@ func TestBedrockPreparedProbeSummaryLabelRespectsNumericMode(t *testing.T) {
 	}
 }
 
-func TestPingBedrockReturnsZeroLatencyOnError(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		target endpoint
-		server *fakeBedrockServer
-		setup  func(t *testing.T) *fakeBedrockServer
-		timeo  time.Duration
-		opts   pingOptions
-	}{
-		{
-			name:   "invalid timeout",
-			target: newEndpoint("8.8.8.8", defaultBedrockPort),
-			timeo:  0,
-			opts: pingOptions{
-				allowPrivateAddresses: true,
-				edition:               editionBedrock,
-			},
-		},
-		{
-			name:   "loopback rejected",
-			target: newEndpoint("127.0.0.1", defaultBedrockPort),
-			timeo:  time.Second,
-			opts: pingOptions{
-				edition: editionBedrock,
-			},
-		},
-		{
-			name: "malformed pong",
-			setup: func(t *testing.T) *fakeBedrockServer {
-				return startFakeBedrockServer(t, func(packet []byte) ([]byte, error) {
-					pingTime := mustPingTime(t, packet)
-					reply := encodeFakeBedrockPong(pingTime, "MCPE;Broken;924;1.26.3;0;10;1;World;Survival;1;19132;19133;0;")
-					reply[0] = 0xff
-					return reply, nil
-				})
-			},
-			timeo: time.Second,
-			opts: pingOptions{
-				allowPrivateAddresses: true,
-				edition:               editionBedrock,
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			target := test.target
-			if test.setup != nil {
-				server := test.setup(t)
-				defer server.Close(t)
-				target = newEndpoint(server.addr.Addr().String(), int(server.addr.Port()))
-			}
-
-			latency, err := ping(target, test.timeo, test.opts)
-			if err == nil {
-				t.Fatal("ping() succeeded, want error")
-			}
-			if latency != 0 {
-				t.Fatalf("ping() latency = %d, want 0 on error", latency)
-			}
-		})
-	}
-}
-
-func TestPingBedrockRejectsInvalidTimeout(t *testing.T) {
-	t.Parallel()
-
-	_, err := ping(newEndpoint("8.8.8.8", defaultBedrockPort), 0, pingOptions{
-		allowPrivateAddresses: true,
-		edition:               editionBedrock,
-	})
-	if err == nil || !strings.Contains(err.Error(), "invalid timeout") {
-		t.Fatalf("ping() error = %v, want invalid-timeout rejection", err)
-	}
-}
-
-func TestPingBedrockRejectsLoopbackAddressByDefault(t *testing.T) {
-	t.Parallel()
-
-	_, err := ping(newEndpoint("127.0.0.1", defaultBedrockPort), time.Second, pingOptions{
-		edition: editionBedrock,
-	})
-	if err == nil || !strings.Contains(err.Error(), "non-public address") {
-		t.Fatalf("ping() error = %v, want non-public address rejection", err)
-	}
-}
-
-func TestPingBedrockWrapsProbeError(t *testing.T) {
-	t.Parallel()
-
-	server := startFakeBedrockServer(t, func(packet []byte) ([]byte, error) {
-		pingTime := mustPingTime(t, packet)
-		reply := encodeFakeBedrockPong(pingTime, "MCPE;Broken;924;1.26.3;0;10;1;World;Survival;1;19132;19133;0;")
-		reply[0] = 0xff
-		return reply, nil
-	})
-	defer server.Close(t)
-
-	_, err := ping(newEndpoint(server.addr.Addr().String(), int(server.addr.Port())), time.Second, pingOptions{
-		allowPrivateAddresses: true,
-		edition:               editionBedrock,
-	})
-	if err == nil || !strings.Contains(err.Error(), "failed to ping server") {
-		t.Fatalf("ping() error = %v, want wrapped probe failure", err)
-	}
-}
-
 func TestPrepareBedrockProbeUsesDefaultClientStateForProbe(t *testing.T) {
 	t.Parallel()
 
@@ -240,59 +129,6 @@ func TestPrepareBedrockProbeUsesDefaultClientStateForProbe(t *testing.T) {
 	}
 	if sample.remote != server.addr {
 		t.Fatalf("remote = %s, want %s", sample.remote, server.addr)
-	}
-}
-
-func TestBedrockTargetSpecFromEndpointDefaults(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		target       endpoint
-		family       addressFamily
-		wantExplicit bool
-	}{
-		{
-			name:         "hostname ipv4 default port",
-			target:       newEndpoint("example.com", defaultBedrockPort),
-			family:       addressFamilyAny,
-			wantExplicit: false,
-		},
-		{
-			name:         "hostname ipv6 default port",
-			target:       newEndpoint("example.com", defaultBedrockPortV6),
-			family:       addressFamily6,
-			wantExplicit: false,
-		},
-		{
-			name:         "hostname custom port",
-			target:       newEndpoint("example.com", 20000),
-			family:       addressFamily6,
-			wantExplicit: true,
-		},
-		{
-			name:         "literal default port",
-			target:       newEndpoint("8.8.8.8", defaultBedrockPort),
-			family:       addressFamilyAny,
-			wantExplicit: false,
-		},
-		{
-			name:         "literal custom port",
-			target:       newEndpoint("8.8.8.8", 20000),
-			family:       addressFamilyAny,
-			wantExplicit: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			spec := bedrockTargetSpecFromEndpoint(test.target, test.family)
-			if spec.PortExplicit != test.wantExplicit {
-				t.Fatalf("PortExplicit = %t, want %t", spec.PortExplicit, test.wantExplicit)
-			}
-		})
 	}
 }
 
@@ -434,6 +270,28 @@ func TestPingBedrockCandidatesReturnsFirstErrorAfterContextCancellation(t *testi
 	}
 	if attempts != 1 {
 		t.Fatalf("dial attempts = %d, want 1", attempts)
+	}
+}
+
+func TestPingBedrockCandidatesJoinsErrorsAfterExhaustingCandidates(t *testing.T) {
+	t.Parallel()
+
+	firstErr := errors.New("first dial failed")
+	secondErr := errors.New("second dial failed")
+
+	_, err := pingBedrockCandidates(context.Background(), pingClient{
+		dialContext: func(_ context.Context, _ string, address string) (net.Conn, error) {
+			if address == "8.8.8.8:19132" {
+				return nil, firstErr
+			}
+			return nil, secondErr
+		},
+	}, []dialCandidate{
+		{address: mustAddrPort(t, "8.8.8.8:19132")},
+		{address: mustAddrPort(t, "1.1.1.1:19132")},
+	}, time.Second)
+	if !errors.Is(err, firstErr) || !errors.Is(err, secondErr) {
+		t.Fatalf("pingBedrockCandidates() error = %v, want joined dial errors", err)
 	}
 }
 

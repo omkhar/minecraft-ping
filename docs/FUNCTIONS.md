@@ -123,10 +123,8 @@ They are not a supported library API.
 | `main.newEndpoint` | It creates an endpoint with a normalized host. |
 | `main.normalizeHost` | It removes outer white space and valid IPv6 brackets. |
 | `main.unbracketIPv6Literal` | It removes brackets only from a valid IPv6 literal. |
-| `main.endpoint.String` | It returns a host and port in network address form. |
 | `main.endpoint.uint16Port` | It converts the endpoint port to an unsigned 16-bit value. |
 | `main.endpoint.literalIP` | It returns the normalized address when the endpoint host is an IP literal. |
-| `main.endpoint.validate` | It checks the server text and requires a port from `1` through `65,535`. |
 | `main.validateServerAddress` | It checks the 253-byte limit, brackets, controls, and colon use in a server name. |
 | `main.toUint16` | It converts an integer from `0` through `65,535`. It rejects other values. |
 | `main.mustParsePrefix` | It parses one built-in network prefix. It stops the program if the source constant is invalid. |
@@ -137,19 +135,11 @@ They are not a supported library API.
 | `main.dialCandidateForLiteralIP` | It checks family and public-address policy for one literal target. |
 | `main.dialCandidatesForResolvedIPs` | It makes candidates that use one common port. |
 | `main.dialCandidatesForResolvedIPsByAddr` | It filters, de-duplicates, and orders resolved addresses. It rejects an empty usable result. |
-| `main.buildDialCandidates` | It makes ordered candidates that use one common port. |
 | `main.buildDialCandidatesWithPortFunc` | It groups IPv4 and IPv6 addresses and alternates the two groups. |
 | `main.interleaveDialCandidates` | It alternates candidates from a primary list and a secondary list. |
 | `main.newPingClient` | It creates a client with the system resolver, dialer, token source, clock, and 250-millisecond fallback delay. |
 | `main.pingClient.withDefaults` | It replaces absent client dependencies with normal dependencies. |
 | `main.defaultDialContext` | It opens a network connection with the supplied context. |
-| `main.newPingRequest` | It applies the port and edition defaults. It checks the endpoint, family, and timeout. |
-| `main.ping` | It selects the Java or Bedrock one-shot path. |
-| `main.pingClient.ping` | It runs one complete Java probe and returns integer milliseconds. |
-| `main.pingClient.resolveEndpoint` | It returns a Java SRV route. It returns the original endpoint after a lookup error. |
-| `main.pingClient.pingEndpoint` | It probes a prepared Java route. An optional Boolean value permits non-public addresses. |
-| `main.pingClient.dialMinecraftTCP` | It creates a timed context and opens one Java TCP connection. |
-| `main.pingClient.dialMinecraftTCPContext` | It resolves candidates and opens the first successful TCP connection. |
 | `main.pingClient.resolveDialCandidates` | It validates a literal target or resolves a host and makes candidates. |
 | `main.pingClient.dialCandidates` | It uses the configured delay between address attempts. It returns the first successful connection. |
 | `main.pingClient.dialCandidateAfterDelay` | It waits for its start delay and reports one connection result. |
@@ -186,14 +176,11 @@ They are not a supported library API.
 
 | Function | Input, result, and failure behavior |
 | --- | --- |
-| `main.newBedrockClient` | It creates the standard ping client for Bedrock. |
 | `main.prepareBedrockProbe` | It resolves Bedrock candidates before the session starts. |
 | `main.bedrockPreparedProbe.banner` | It returns the Bedrock session banner. Numeric mode can keep the host name when multiple candidates exist. |
 | `main.bedrockPreparedProbe.summaryLabel` | It returns the host or the numeric address for the summary. |
 | `main.bedrockPreparedProbe.observeSample` | It saves a valid remote address from a successful probe. |
 | `main.bedrockPreparedProbe.probe` | It runs one prepared Bedrock exchange. |
-| `main.pingBedrock` | It runs one complete Bedrock probe and returns integer milliseconds. |
-| `main.bedrockTargetSpecFromEndpoint` | It decides whether an endpoint port differs from the Bedrock default. |
 | `main.pingClient.resolveBedrockCandidates` | It validates the target and makes UDP candidates with the IPv4 or IPv6 default port. |
 | `main.pingBedrockCandidates` | It tries UDP candidates in order and returns the first successful sample. |
 | `main.pingBedrockCandidate` | It connects and then applies the socket deadline. It sends one RakNet ping and validates a pong of at most 2,048 bytes. |
@@ -202,7 +189,6 @@ They are not a supported library API.
 | `main.randomUint64With` | It gives an eight-byte zeroed buffer to the supplied callback. It ignores the returned byte count. It returns zero and wraps a callback error. Otherwise, it converts the full buffer to a big-endian 64-bit value. |
 | `main.parseBedrockStatusResponse` | It checks the packet ID, timestamp, magic, exact length, UTF-8 data, and status text. |
 | `main.parseBedrockStatusText` | It parses the required Bedrock status fields and available optional fields. |
-| `main.ioErrUnexpectedEOF` | It returns a contextual unexpected-end error. |
 
 ### Staging-server functions
 

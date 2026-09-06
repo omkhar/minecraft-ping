@@ -92,12 +92,6 @@ func dialCandidatesForResolvedIPsByAddr(host string, addrs []netip.Addr, family 
 	return nil, fmt.Errorf("no dialable addresses resolved for %s", host)
 }
 
-func buildDialCandidates(addrs []netip.Addr, port uint16) []dialCandidate {
-	return buildDialCandidatesWithPortFunc(addrs, func(netip.Addr) uint16 {
-		return port
-	})
-}
-
 func buildDialCandidatesWithPortFunc(addrs []netip.Addr, portForAddr func(netip.Addr) uint16) []dialCandidate {
 	seen := make(map[netip.Addr]struct{}, len(addrs))
 
