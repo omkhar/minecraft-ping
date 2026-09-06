@@ -450,5 +450,6 @@ func mustReadPath(t *testing.T, path string) string {
 	if err != nil {
 		t.Fatal(fmt.Errorf("read %s: %w", path, err))
 	}
-	return string(content)
+	// Windows checkouts can use CRLF line endings.
+	return strings.ReplaceAll(string(content), "\r\n", "\n")
 }

@@ -313,7 +313,7 @@ func TestLiveDocumentationUsesControlledStyle(t *testing.T) {
 			t.Errorf("read %s: %v", path, err)
 			continue
 		}
-		for _, finding := range controlledStyleFindings(string(data)) {
+		for _, finding := range controlledStyleFindings(strings.ReplaceAll(string(data), "\r\n", "\n")) {
 			t.Errorf("%s: %s", path, finding)
 		}
 	}
@@ -952,7 +952,7 @@ func forEachDocumentationSurface(t *testing.T, check func(path, document string)
 			t.Errorf("read %s: %v", path, err)
 			continue
 		}
-		check(path, string(data))
+		check(path, strings.ReplaceAll(string(data), "\r\n", "\n"))
 	}
 }
 
