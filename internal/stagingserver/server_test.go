@@ -1580,6 +1580,15 @@ func waitForServerReady(cfg Config, errCh <-chan error, ready func(Config) error
 		default:
 		}
 		if err := ready(cfg); err == nil {
+			// A ready probe can reach a foreign server when the pre-picked
+			// port was reused before Serve bound it. Give Serve a moment to
+			// surface its bind error before this start is trusted.
+			time.Sleep(50 * time.Millisecond)
+			select {
+			case err := <-errCh:
+				return err, true
+			default:
+			}
 			return nil, false
 		} else {
 			lastErr = err
