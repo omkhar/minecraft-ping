@@ -1,6 +1,8 @@
 # Code of Conduct
 
-This project is committed to a respectful, professional, and welcoming community.
+This document uses ASD-STE100 Simplified Technical English.
+
+This project supports a respectful, professional, and welcoming community.
 
 ## Expected Behavior
 
@@ -11,10 +13,10 @@ This project is committed to a respectful, professional, and welcoming community
 
 ## Unacceptable Behavior
 
-- Harassment, discrimination, or personal attacks.
-- Trolling, baiting, intimidation, or sustained disruption.
-- Publishing private information without explicit permission.
-- Repeatedly ignoring project boundaries, review feedback, or security guidance.
+- Do not harass, discriminate against, or attack a person.
+- Do not troll, bait, intimidate, or repeatedly disrupt the community.
+- Do not publish private information without explicit permission.
+- Do not repeatedly ignore project boundaries, review feedback, or security guidance.
 
 ## Scope
 
@@ -22,4 +24,5 @@ This code of conduct applies to repository discussions, pull requests, issues, r
 
 ## Reporting
 
-Report conduct concerns privately to `minecraft-ping@omkhar.net`. Reports will be handled as discreetly as possible.
+Send conduct concerns privately to `minecraft-ping@omkhar.net`.
+The maintainer will handle each report as discreetly as possible.

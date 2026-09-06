@@ -1,15 +1,17 @@
 ## Summary
 
-- describe the change
-- describe the user impact
+This document uses ASD-STE100 Simplified Technical English.
+
+- Describe the change.
+- Describe the effect on users.
 
 ## Validation
 
-- [ ] `make verify`
-- [ ] `make coverage`
-- [ ] integration or release-path validation ran when relevant
-- [ ] docs, changelog, or man page updated if behavior changed
+- [ ] Run `make verify`.
+- [ ] Run `make coverage`.
+- [ ] Run integration or release validation when the change affects those paths.
+- [ ] Update the documentation, changelog, or man page when behavior changes.
 
 ## Notes
 
-- protocol, packaging, workflow, security, or release implications
+- State the protocol, packaging, workflow, security, or release effects.

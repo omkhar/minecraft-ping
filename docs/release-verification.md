@@ -1,12 +1,17 @@
 # Release Verification
 
-`minecraft-ping` publishes signed release artifacts, signed SPDX SBOMs, checksums, and GitHub provenance data from the repository release workflow.
+This document uses ASD-STE100 Simplified Technical English.
+
+`minecraft-ping` publishes signed release artifacts, signed SPDX SBOMs, and
+checksums from the repository release workflow. Public releases also publish
+GitHub provenance data. GitHub attestations are not available when a private
+repository belongs to a personal account.
 
 ## Recommended Trust Check
 
-For most consumers, the primary verification path is:
+For most users, use this verification procedure:
 
-1. download the artifact you care about
+1. download the required artifact
 2. verify it with `gh attestation verify`
 3. optionally compare the published checksum and inspect the SBOM or provenance bundle for additional audit context
 
@@ -61,7 +66,7 @@ The attestation flow is the same for each published artifact. Replace the filena
 `checksums.txt` is a convenience index of release-asset digests.
 It is useful when you are mirroring assets, verifying multiple downloads at once, or comparing a local file against the published digest list.
 
-Typical flow:
+Procedure:
 
 1. download `checksums.txt`
 2. find the expected line for your artifact
@@ -80,11 +85,12 @@ Then compute the local digest with the tool that matches your platform:
 - Linux: `sha256sum release-assets/<artifact>`
 - PowerShell: `Get-FileHash release-assets/<artifact> -Algorithm SHA256`
 
-The checksum file is supplementary. The primary trust decision should still come from `gh attestation verify` or the corresponding provenance bundle.
+The checksum file supplies additional data. Use `gh attestation verify` or the
+applicable provenance bundle for the primary verification.
 
 ## Optional Cosign Bundle Verification
 
-Release artifacts and SBOMs are also accompanied by Sigstore bundles.
+Sigstore bundles also accompany release artifacts and SBOMs.
 Use these when you want an offline-style blob verification path instead of the GitHub attestation flow.
 
 To verify a specific artifact bundle directly with `cosign`:
@@ -115,7 +121,8 @@ gh release download vX.Y.Z \
 
 - If you use `gh attestation verify`, you do not need the provenance bundles separately.
 - If you need an auditable offline artifact trail, keep the provenance bundle alongside the release asset it describes.
-- The supported verification command remains `gh attestation verify`; the provenance bundle is the archived copy of the attestation that command checks against.
+- Continue to use `gh attestation verify` as the supported verification command.
+  The provenance bundle contains an archived copy of the attestation that this command checks.
 
 ## SBOM Assets
 

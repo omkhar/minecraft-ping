@@ -1,6 +1,9 @@
 # minecraft-ping
 
-`minecraft-ping` measures Minecraft server latency with `ping`-style ergonomics while staying honest about the underlying protocols.
+This document uses ASD-STE100 Simplified Technical English.
+
+`minecraft-ping` measures Minecraft server latency. Its text output is similar
+to Unix `ping`, but it reports Minecraft protocol behavior only.
 
 - Java Edition is the default.
 - Bedrock Edition is available with `--bedrock` or `--edition bedrock`.
@@ -27,7 +30,7 @@ If you want a local binary in the repository root instead:
 go build -o minecraft-ping .
 ```
 
-Signed release archives and Linux packages are published from tagged releases on [GitHub Releases](https://github.com/omkhar/minecraft-ping/releases).
+The project publishes signed release archives and Linux packages on [GitHub Releases](https://github.com/omkhar/minecraft-ping/releases).
 Linux packages install the `minecraft-ping(1)` man page, and release archives ship the same source at `man/minecraft-ping.1`.
 
 ## Quick Start
@@ -36,7 +39,7 @@ Linux packages install the `minecraft-ping(1)` man page, and release archives sh
 minecraft-ping [options] destination
 ```
 
-At a glance:
+Common options:
 
 - `--bedrock` or `--edition bedrock`: switch from Java to Bedrock
 - `-c count`: stop after a fixed number of probes
@@ -46,8 +49,9 @@ At a glance:
 
 Common examples:
 
-To keep the snippets reproducible, the sample stdout blocks below were captured against the repository's local staging backend.
-That means the samples show localhost-style targets even when the command example uses a public hostname.
+The examples use output from the local staging backend so that the values are
+repeatable.
+The output shows local targets when a command example uses a public host name.
 On a real server, the host label, resolved address, port selection, and latency will differ.
 
 ```bash
@@ -124,15 +128,17 @@ minecraft-ping -j mc.example.com
 
 - Java and Bedrock stay explicit. The CLI does not auto-detect editions.
 - By default, the CLI rejects loopback, RFC1918, ULA, link-local, and documentation-only IP addresses. Pass `--allow-private` only when you intentionally want to probe a local or private host.
-- Java probing uses the Minecraft status and ping/pong handshake over TCP and only performs SRV lookup when the target is a hostname with no explicit port.
+- Java probing uses the Minecraft status and ping/pong handshake over TCP.
+  It performs SRV lookup only for a host name without an explicit port.
 - Bedrock probing uses RakNet unconnected ping/pong over UDP.
 - The CLI intentionally does not fake ICMP-only fields such as `ttl`, byte counts, or `icmp_seq`.
 
 For the full flag reference, destination rules, exit status contract, and protocol notes, see [CLI Reference](docs/cli-reference.md).
+For product and validation boundaries, see [Limits and Failure Behavior](docs/LIMITATIONS.md).
 
 ## Supported Release Targets
 
-Release artifacts are built for:
+The release process builds these artifacts:
 
 - macOS `arm64`
 - Linux `amd64` and `arm64`
@@ -142,14 +148,15 @@ Intel macOS (`amd64`) archives are no longer part of the release matrix. The fin
 
 ## Release Artifacts
 
-Releases are built from GitHub Actions on GitHub-verified signed, annotated tags at the current `main` head.
+GitHub Actions builds releases from GitHub-verified signed, annotated tags at the current `main` head.
 
-- Signed release artifacts are published for macOS `arm64`, Linux, and Windows.
-- Release archives and packages are built with deterministic paths and commit-based mtimes so the artifact bytes can be reproduced from the same source tree and toolchain.
+- The release workflow publishes signed artifacts for macOS `arm64`, Linux, and Windows.
+- The build uses deterministic paths and commit-based modification times.
+  You can reproduce the artifact bytes with the same source tree and toolchain.
 - The release workflow publishes signed SPDX SBOM assets for each release.
-- GitHub artifact attestations and downloadable provenance bundles are published with public releases.
+- The release workflow publishes GitHub artifact attestations and downloadable provenance bundles for public releases.
 
-For quick consumer verification instructions, see [Release Verification](docs/release-verification.md).
+For artifact verification instructions, see [Release Verification](docs/release-verification.md).
 
 ## Support
 
@@ -163,8 +170,11 @@ For quick consumer verification instructions, see [Release Verification](docs/re
 Users:
 
 - [CLI Reference](docs/cli-reference.md)
+- [Function Reference](docs/FUNCTIONS.md)
+- [Limits and Failure Behavior](docs/LIMITATIONS.md)
 - [Release Verification](docs/release-verification.md)
 - [Runtime Versions](docs/RUNTIME.md)
+- [Documentation Language](docs/STYLE.md)
 - [Support](SUPPORT.md)
 - [Man Page Source](man/minecraft-ping.1)
 
@@ -188,4 +198,4 @@ Automation:
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
+The Apache License, Version 2.0, applies to this project. See [LICENSE](LICENSE).
