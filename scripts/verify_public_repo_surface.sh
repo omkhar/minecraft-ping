@@ -22,7 +22,6 @@ for relative_path in "${disallowed_files[@]}"; do
 done
 
 disallowed_dirs=(
-  ".codex"
   ".gemini"
   "tools/agent-clis"
 )
@@ -33,6 +32,28 @@ for relative_path in "${disallowed_dirs[@]}"; do
     exit 1
   fi
 done
+
+codex_dir="${repo_root}/.codex"
+codex_config="${codex_dir}/config.toml"
+
+if [[ ! -d "${codex_dir}" || -L "${codex_dir}" ]]; then
+  echo ".codex must be a real directory containing only config.toml" >&2
+  exit 1
+fi
+
+if [[ ! -f "${codex_config}" || -L "${codex_config}" ]]; then
+  echo ".codex/config.toml must be a regular file" >&2
+  exit 1
+fi
+
+unexpected_codex_paths="$(
+  find "${codex_dir}" -mindepth 1 ! -path "${codex_config}" -print
+)"
+if [[ -n "${unexpected_codex_paths}" ]]; then
+  echo ".codex contains paths other than the approved config.toml:" >&2
+  printf '%s\n' "${unexpected_codex_paths}" >&2
+  exit 1
+fi
 
 temp_artifacts="$(
   find "${repo_root}" -path "${repo_root}/.git" -prune -o -type f \( -name '*.tmp' -o -name '*.orig' -o -name '*.rej' \) -print
@@ -76,6 +97,7 @@ scan_paths=(
   ".github/workflows"
   ".agents/skills"
   ".claude/skills"
+  ".codex/config.toml"
 )
 
 existing_paths=()
