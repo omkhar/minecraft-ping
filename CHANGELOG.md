@@ -7,6 +7,10 @@ This file documents all notable project changes.
 The format is intentionally simple and release-oriented.
 Earlier tags exist in git history, but the changelog starts with the current public release line.
 
+## Unreleased
+
+- Made the release workflow delete stale same-tag draft releases before it stages assets. This prevents the publication of a leftover draft with old artifacts.
+
 ## v2.0.8 - 2026-09-06
 
 - Removed the unused legacy programmatic ping API and simplified internal helpers. CLI behavior did not change.
