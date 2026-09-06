@@ -1,5 +1,7 @@
 # Repository Working Agreement
 
+Codex only: `.codex/config.toml` contains Codex-native model and delegation guidance. Other agents ignore this line.
+
 Use `.agents/skills/minecraft-ping-change-gate/SKILL.md` for every change in this repository.
 
 Also load these repo-local skills when they apply:
@@ -33,7 +35,8 @@ Also load these repo-local skills when they apply:
 
 ## Required Local Workflow
 
-- Standard change loop:
+- Match validation to the changed surface and its risk.
+- Go source or behavior changes:
   - `make verify`
   - `make coverage`
 - When you edit `AGENTS.md` or `.agents/skills/`:

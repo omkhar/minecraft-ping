@@ -31,11 +31,11 @@ Use this skill for every change in this repository.
 - Inspect `Makefile`, `docs/development.md`, and `.github/workflows/` before adding new commands or abstractions.
 - Add or update focused tests for every behavior change.
 - Update docs, the man page, and the changelog when user-visible behavior changes.
-- Run checks in this order:
-  - `make verify`
-  - `make coverage`
-  - `make deadcode` when `deadcode` is installed locally
-  - `make mutation` when `go-mutesting` is installed locally and the change touches a supported non-`main` package
+- Match validation to the changed surface and its risk.
+- For Go source or behavior changes, run `make verify` and `make coverage`.
+- For agent-surface changes, run `make agents-sync` and `make agents-verify`.
+- Run `make deadcode` when `deadcode` is installed locally and the change is a logic-heavy refactor.
+- Run `make mutation` when `go-mutesting` is installed locally and the change alters logic in a supported non-`main` package.
 - For `package main` code, strengthen focused unit, mutation-killer, and integration tests instead of pretending the mutation tool covers it.
 - Run `go fix ./...` when it simplifies the code or applies current Go idioms without changing behavior.
 - Run `make clean-repo` before handoff or commit.
