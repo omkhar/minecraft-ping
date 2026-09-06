@@ -4,11 +4,11 @@ This document uses ASD-STE100 Simplified Technical English.
 
 ## Shipped Program
 
-The project uses Go 1.26.5.
+The project uses Go 1.27.1.
 GoReleaser sets `CGO_ENABLED=0` for release builds.
 Thus, a release binary does not require a separate Go installation.
 
-The staging container uses `golang:1.26.5-bookworm`.
+The staging container uses `golang:1.27.1-bookworm`.
 The Dockerfile pins the image digest.
 
 The Linux package smoke tests use these container releases:
@@ -40,15 +40,15 @@ The workflows also pin the versions of build, test, security, and release tools.
 
 The main tool versions are:
 
-- GoReleaser `v2.17.0`
-- Cosign `v3.1.2`
-- Syft `v1.49.0`
+- GoReleaser `v2.18.1`
+- Cosign `v3.1.3`
+- Syft `v1.51.1`
 - actionlint `v1.7.12`
-- deadcode and goimports from `golang.org/x/tools` `v0.48.0`
-- govulncheck `v1.6.0`
-- gosec `v2.28.0`
-- gocritic `v0.14.4`
-- Staticcheck `v0.7.0`
+- deadcode and goimports from `golang.org/x/tools` `v0.49.0`
+- govulncheck `v1.7.0`
+- gosec `v2.29.0`
+- gocritic `v0.15.0`
+- Staticcheck `v0.8.1`
 - gitleaks `v8.30.1`
 - go-mutesting `v0.0.0-20251226130216-48d0401f00fb`
 

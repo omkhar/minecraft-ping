@@ -393,7 +393,7 @@ func checkToolVersions(t *testing.T, tools map[string]string, workflows string) 
 func TestRuntimeDocumentationCoversManifest(t *testing.T) {
 	runtimeDoc := mustReadDocumentationFile(t, "docs/RUNTIME.md")
 	for _, statement := range []string{
-		"Go 1.26.5",
+		"Go 1.27.1",
 		"ubuntu-24.04-arm",
 		"windows-11-arm",
 		"docs/runtime-versions.json",
