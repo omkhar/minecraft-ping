@@ -7,7 +7,7 @@ This file documents all notable project changes.
 The format is intentionally simple and release-oriented.
 Earlier tags exist in git history, but the changelog starts with the current public release line.
 
-## Unreleased
+## v2.0.8 - 2026-09-06
 
 - Removed the unused legacy programmatic ping API and simplified internal helpers. CLI behavior did not change.
 - Bumped the Go toolchain to 1.27.1 (go.mod and the staging container image) and refreshed pinned CI tool versions.
@@ -15,6 +15,7 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 - Added a machine-checked runtime reference.
 - Added complete function and limitation references.
 - Added tests that keep the documentation surface consistent with the code.
+- Fixed Windows CRLF handling and a port-reuse race in the test suites.
 
 ## v2.0.7 - 2026-07-01
 
