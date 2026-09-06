@@ -337,11 +337,7 @@ func TestControlledStyleCheckerRejectsUnsupportedProse(t *testing.T) {
 func TestStyleGuideDocumentsAutomatedBoundaries(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("docs", "STYLE.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	guide := string(data)
+	guide := mustReadDocumentationFile(t, "docs/STYLE.md")
 	for _, required := range []string{
 		"25 words",
 		"passive-voice patterns",
@@ -365,11 +361,7 @@ func TestStyleGuideDocumentsAutomatedBoundaries(t *testing.T) {
 func TestFunctionCatalogCoversProductionFunctions(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("docs", "FUNCTIONS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	catalog := string(data)
+	catalog := mustReadDocumentationFile(t, "docs/FUNCTIONS.md")
 	functions, err := productionFunctions(".")
 	if err != nil {
 		t.Fatal(err)
@@ -401,11 +393,7 @@ func TestFunctionCatalogComparisonRejectsDrift(t *testing.T) {
 func TestSupportedUserFunctionsMatchCommandContracts(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("docs", "FUNCTIONS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	document := string(data)
+	document := mustReadDocumentationFile(t, "docs/FUNCTIONS.md")
 	section := between(document, "## Supported user functions", "## Implementation function catalog")
 	if section == "" {
 		t.Fatal("docs/FUNCTIONS.md does not contain the supported user function inventory")
@@ -414,10 +402,7 @@ func TestSupportedUserFunctionsMatchCommandContracts(t *testing.T) {
 		t.Fatalf("supported user surface drift: %v", err)
 	}
 
-	source, err := os.ReadFile("cli.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := []byte(mustReadDocumentationFile(t, "cli.go"))
 	accepted, err := acceptedCLIOptions(source)
 	if err != nil {
 		t.Fatal(err)
@@ -529,10 +514,7 @@ func TestSupportedUserFunctionsMatchCommandContracts(t *testing.T) {
 func TestSupportedDistributionSurfaceMatchesGoReleaser(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(".goreleaser.yml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := []byte(mustReadDocumentationFile(t, ".goreleaser.yml"))
 	var config releaseConfiguration
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
@@ -608,25 +590,19 @@ func TestSupportedDistributionSurfaceMatchesGoReleaser(t *testing.T) {
 		t.Fatalf("release signature config = %+v", config.Signs)
 	}
 
-	readme, err := os.ReadFile("README.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(readme), "go install github.com/omkhar/minecraft-ping/v2@latest") {
+	readme := mustReadDocumentationFile(t, "README.md")
+	if !strings.Contains(readme, "go install github.com/omkhar/minecraft-ping/v2@latest") {
 		t.Fatal("README.md does not document the source installation surface")
 	}
 
-	releaseWorkflow, err := os.ReadFile(filepath.Join(".github", "workflows", "release.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	releaseWorkflow := mustReadDocumentationFile(t, ".github/workflows/release.yml")
 	for _, required := range []string{
 		"actions/attest-build-provenance@",
 		".provenance.jsonl",
 		"Generate SPDX SBOMs",
 		`cosign sign-blob --yes --bundle "${sbom}.sigstore.json" "${sbom}"`,
 	} {
-		if !strings.Contains(string(releaseWorkflow), required) {
+		if !strings.Contains(releaseWorkflow, required) {
 			t.Errorf("release workflow does not contain %q", required)
 		}
 	}
@@ -693,11 +669,7 @@ func TestProductionFunctionsIgnoreVendoredModules(t *testing.T) {
 func TestDocumentedLimitsCoverEnforcedConstants(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("docs", "LIMITATIONS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data)
+	text := mustReadDocumentationFile(t, "docs/LIMITATIONS.md")
 	for _, required := range []string{
 		"253 bytes",
 		"1 through 65,535",
@@ -723,11 +695,7 @@ func TestDocumentedLimitsCoverEnforcedConstants(t *testing.T) {
 func TestDocumentedBehaviorCoversNonobviousBoundaries(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("docs", "LIMITATIONS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	limits := string(data)
+	limits := mustReadDocumentationFile(t, "docs/LIMITATIONS.md")
 	for _, required := range []string{
 		"The interval is the minimum time from one probe start to the next probe",
 		"The probe timeout starts after a TCP or UDP connection succeeds",
@@ -750,11 +718,7 @@ func TestDocumentedBehaviorCoversNonobviousBoundaries(t *testing.T) {
 func TestEveryDocumentedLimitationHasContractCoverage(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("docs", "LIMITATIONS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	sections := markdownSecondLevelSections(string(data))
+	sections := markdownSecondLevelSections(mustReadDocumentationFile(t, "docs/LIMITATIONS.md"))
 	actualSectionNames := make(map[string]bool, len(sections))
 	for name := range sections {
 		actualSectionNames[name] = true
@@ -809,25 +773,14 @@ func TestDurationDocumentationMatchesExponentSyntax(t *testing.T) {
 		t.Fatalf("parseSecondsDuration(1e1) = %s, %t, want 10s, true", duration, ok)
 	}
 
-	for _, path := range []string{
-		"docs/FUNCTIONS.md",
-		"docs/LIMITATIONS.md",
-		"docs/cli-reference.md",
-		"man/minecraft-ping.1",
-	} {
-		data, err := os.ReadFile(filepath.FromSlash(path))
-		if err != nil {
-			t.Errorf("read %s: %v", path, err)
-			continue
-		}
-		document := string(data)
+	forEachDocumentationSurface(t, func(path, document string) {
 		if !strings.Contains(document, "accepts exponent notation") {
 			t.Errorf("%s does not document accepted exponent notation", path)
 		}
 		if strings.Contains(document, "rejects exponent") {
 			t.Errorf("%s incorrectly documents rejected exponent notation", path)
 		}
-	}
+	})
 }
 
 func TestArgumentOrderDocumentationMatchesParser(t *testing.T) {
@@ -841,42 +794,22 @@ func TestArgumentOrderDocumentationMatchesParser(t *testing.T) {
 		t.Fatalf("scanArgv() accepted an argument after the -- destination: %v", status)
 	}
 
-	for _, path := range []string{
-		"docs/FUNCTIONS.md",
-		"docs/LIMITATIONS.md",
-		"docs/cli-reference.md",
-		"man/minecraft-ping.1",
-	} {
-		data, err := os.ReadFile(filepath.FromSlash(path))
-		if err != nil {
-			t.Errorf("read %s: %v", path, err)
-			continue
-		}
-		document := string(data)
+	forEachDocumentationSurface(t, func(path, document string) {
 		if !strings.Contains(document, "before or after the destination") {
 			t.Errorf("%s does not document regular option order", path)
 		}
 		if !strings.Contains(document, "final argument") {
 			t.Errorf("%s does not document the -- destination boundary", path)
 		}
-	}
+	})
 }
 
 func TestCLIReferenceAndManPageCoverEveryOption(t *testing.T) {
 	t.Parallel()
 
-	source, err := os.ReadFile("cli.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	reference, err := os.ReadFile(filepath.Join("docs", "cli-reference.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	manPage, err := os.ReadFile(filepath.Join("man", "minecraft-ping.1"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := []byte(mustReadDocumentationFile(t, "cli.go"))
+	reference := mustReadDocumentationFile(t, "docs/cli-reference.md")
+	manPage := mustReadDocumentationFile(t, "man/minecraft-ping.1")
 	accepted, err := acceptedCLIOptions(source)
 	if err != nil {
 		t.Fatal(err)
@@ -884,8 +817,8 @@ func TestCLIReferenceAndManPageCoverEveryOption(t *testing.T) {
 	sets := map[string][]string{
 		"accepted options": accepted,
 		"help output":      optionTokens(usageText()),
-		"CLI reference":    markdownOptionTokens(string(reference)),
-		"man page":         manPageOptionTokens(string(manPage)),
+		"CLI reference":    markdownOptionTokens(reference),
+		"man page":         manPageOptionTokens(manPage),
 	}
 	for name, options := range sets {
 		if err := compareExactSets(accepted, options); err != nil {
@@ -897,12 +830,9 @@ func TestCLIReferenceAndManPageCoverEveryOption(t *testing.T) {
 func TestCLIOptionComparisonRejectsAcceptedAndHelpDrift(t *testing.T) {
 	t.Parallel()
 
-	source, err := os.ReadFile("cli.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := mustReadDocumentationFile(t, "cli.go")
 	mutant := strings.Replace(
-		string(source),
+		source,
 		`case "--version":`,
 		`case "--numeric":
 		return raw, true
@@ -919,11 +849,8 @@ func TestCLIOptionComparisonRejectsAcceptedAndHelpDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reference, err := os.ReadFile(filepath.Join("docs", "cli-reference.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := compareExactSets(accepted, markdownOptionTokens(string(reference))); err == nil {
+	reference := mustReadDocumentationFile(t, "docs/cli-reference.md")
+	if err := compareExactSets(accepted, markdownOptionTokens(reference)); err == nil {
 		t.Fatal("option comparison accepted an undocumented parser and help option")
 	}
 }
@@ -931,11 +858,7 @@ func TestCLIOptionComparisonRejectsAcceptedAndHelpDrift(t *testing.T) {
 func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 	t.Parallel()
 
-	data, err := os.ReadFile(filepath.Join("docs", "FUNCTIONS.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	descriptions := functionDescriptions(string(data))
+	descriptions := functionDescriptions(mustReadDocumentationFile(t, "docs/FUNCTIONS.md"))
 
 	if got := descriptions["main.parseEdition"]; !strings.Contains(got, "empty value or `java` as Java") || !strings.Contains(got, "rejects other values") {
 		t.Errorf("main.parseEdition description does not state the empty-value and rejection contracts: %q", got)
@@ -1013,6 +936,23 @@ func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 	})
 	if err != nil || randomValue != 0x1200000000000000 {
 		t.Fatalf("randomUint64With short read = 0x%x, %v", randomValue, err)
+	}
+}
+
+func forEachDocumentationSurface(t *testing.T, check func(path, document string)) {
+	t.Helper()
+	for _, path := range []string{
+		"docs/FUNCTIONS.md",
+		"docs/LIMITATIONS.md",
+		"docs/cli-reference.md",
+		"man/minecraft-ping.1",
+	} {
+		data, err := os.ReadFile(filepath.FromSlash(path))
+		if err != nil {
+			t.Errorf("read %s: %v", path, err)
+			continue
+		}
+		check(path, string(data))
 	}
 }
 
@@ -1382,36 +1322,20 @@ func functionDescriptions(catalog string) map[string]string {
 func compareFunctionCatalog(expected []string, catalog string) error {
 	documented := make(map[string]bool)
 	rowPattern := regexp.MustCompile("(?m)^\\| `([^`]+)` \\|")
+	var names []string
 	for _, match := range rowPattern.FindAllStringSubmatch(implementationFunctionCatalog(catalog), -1) {
 		name := match[1]
 		if documented[name] {
 			return fmt.Errorf("docs/FUNCTIONS.md contains duplicate function %s", name)
 		}
 		documented[name] = true
+		names = append(names, name)
 	}
 
-	expectedSet := make(map[string]bool, len(expected))
-	for _, name := range expected {
-		expectedSet[name] = true
+	if err := compareExactSets(expected, names); err != nil {
+		return fmt.Errorf("docs/FUNCTIONS.md function drift: %w", err)
 	}
-	var missing []string
-	for name := range expectedSet {
-		if !documented[name] {
-			missing = append(missing, name)
-		}
-	}
-	var stale []string
-	for name := range documented {
-		if !expectedSet[name] {
-			stale = append(stale, name)
-		}
-	}
-	if len(missing) == 0 && len(stale) == 0 {
-		return nil
-	}
-	sort.Strings(missing)
-	sort.Strings(stale)
-	return fmt.Errorf("docs/FUNCTIONS.md function drift: missing=%v stale=%v", missing, stale)
+	return nil
 }
 
 func implementationFunctionCatalog(catalog string) string {
