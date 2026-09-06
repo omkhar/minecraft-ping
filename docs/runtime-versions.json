@@ -1,9 +1,9 @@
 {
-  "go": "1.26.5",
+  "go": "1.27.1",
   "staging_container": {
     "image": "golang",
-    "tag": "1.26.5-bookworm",
-    "digest": "53eeac89074db483fdf0ab3be1df32bf6e47562263d2d0d6baa7f26acb4957dd"
+    "tag": "1.27.1-bookworm",
+    "digest": "648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b"
   },
   "package_smoke_containers": {
     "alpine": {
@@ -101,17 +101,17 @@
   },
   "tools": {
     "actionlint": "v1.7.12",
-    "cosign": "v3.1.2",
-    "deadcode": "v0.48.0",
+    "cosign": "v3.1.3",
+    "deadcode": "v0.49.0",
     "gitleaks": "v8.30.1",
-    "gocritic": "v0.14.4",
-    "goimports": "v0.48.0",
+    "gocritic": "v0.15.0",
+    "goimports": "v0.49.0",
     "go-mutesting": "v0.0.0-20251226130216-48d0401f00fb",
-    "goreleaser": "v2.17.0",
-    "gosec": "v2.28.0",
-    "govulncheck": "v1.6.0",
+    "goreleaser": "v2.18.1",
+    "gosec": "v2.29.0",
+    "govulncheck": "v1.7.0",
     "ineffassign": "v0.2.0",
-    "staticcheck": "v0.7.0",
-    "syft": "v1.49.0"
+    "staticcheck": "v0.8.1",
+    "syft": "v1.51.1"
   }
 }

@@ -9,6 +9,7 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Bumped the Go toolchain to 1.27.1 (go.mod and the staging container image) and refreshed pinned CI tool versions.
 - Updated Go, the staging image, CI tools, GitHub Actions, and fixed runner labels.
 - Added a machine-checked runtime reference.
 - Added complete function and limitation references.
