@@ -176,16 +176,6 @@ func TestPrepareBedrockProbeWrapsResolverError(t *testing.T) {
 	}
 }
 
-func TestBedrockTargetSpecFromEndpointUsesImplicitIPv6Port(t *testing.T) {
-	target := bedrockTargetSpecFromEndpoint(endpoint{
-		Host: "2606:4700:4700::1111",
-		Port: 19133,
-	}, addressFamily6)
-	if target.PortExplicit {
-		t.Fatal("PortExplicit = true, want false for implicit IPv6 bedrock port")
-	}
-}
-
 func TestPingBedrockCandidateAgainstFakeServer(t *testing.T) {
 	server := startFakeBedrockServer(t, func(packet []byte) ([]byte, error) {
 		if packet[0] != bedrockUnconnectedPingPacketID {
@@ -304,65 +294,36 @@ func TestPrepareBedrockProbeNumericModeUsesResolvedAddress(t *testing.T) {
 	}
 }
 
-func TestPingBedrockServer(t *testing.T) {
-	server := startFakeBedrockServer(t, func(packet []byte) ([]byte, error) {
-		pingTime := binary.BigEndian.Uint64(packet[1:9])
-		return encodeFakeBedrockPong(pingTime, "MCPE;Test Server;924;1.26.3;1;10;983;World;Survival;1;19132;19133;0;"), nil
-	})
-	defer server.Close(t)
-
-	latency, err := ping(newEndpoint(server.addr.Addr().String(), int(server.addr.Port())), 2*time.Second, pingOptions{
-		allowPrivateAddresses: true,
-		edition:               editionBedrock,
-	})
-	if err != nil {
-		t.Fatalf("ping() error = %v", err)
-	}
-	if latency <= 0 {
-		t.Fatalf("ping() latency = %d, want positive", latency)
-	}
-}
-
-func TestPingBedrockWrapsMalformedPongError(t *testing.T) {
-	server := startFakeBedrockServer(t, func(packet []byte) ([]byte, error) {
-		pingTime := binary.BigEndian.Uint64(packet[1:9])
-		reply := encodeFakeBedrockPong(pingTime, "MCPE;Broken;924;1.26.3;0;10;1;World;Survival;1;19132;19133;0;")
-		reply[0] = 0xff
-		return reply, nil
-	})
-	defer server.Close(t)
-
-	_, err := pingBedrock(newEndpoint(server.addr.Addr().String(), int(server.addr.Port())), 2*time.Second, pingOptions{
-		allowPrivateAddresses: true,
-	})
-	if err == nil {
-		t.Fatal("pingBedrock() expected error")
-	}
-	if !strings.Contains(err.Error(), "failed to ping server") {
-		t.Fatalf("pingBedrock() error = %q, want wrapped ping context", err)
-	}
-	if !strings.Contains(err.Error(), "unexpected bedrock pong packet id") {
-		t.Fatalf("pingBedrock() error = %q, want malformed pong context", err)
-	}
-}
-
-func TestPingBedrockServerIPv6(t *testing.T) {
+func TestPrepareBedrockProbeProbesResolvedIPv6Address(t *testing.T) {
 	server := startFakeBedrockServerOn(t, "udp6", "[::1]:0", func(packet []byte) ([]byte, error) {
 		pingTime := binary.BigEndian.Uint64(packet[1:9])
 		return encodeFakeBedrockPong(pingTime, "MCPE;Test Server;924;1.26.3;1;10;983;World;Survival;1;19132;19133;0;"), nil
 	})
 	defer server.Close(t)
 
-	latency, err := ping(newEndpoint(server.addr.Addr().String(), int(server.addr.Port())), 2*time.Second, pingOptions{
+	client := pingClient{
+		resolver: stubBedrockResolver{
+			addrs: []netip.Addr{server.addr.Addr()},
+		},
+	}
+	prepared, err := prepareBedrockProbe(context.Background(), client, targetSpec{
+		Host:         "example.com",
+		Port:         int(server.addr.Port()),
+		PortExplicit: true,
+	}, pingOptions{
 		addressFamily:         addressFamily6,
 		allowPrivateAddresses: true,
-		edition:               editionBedrock,
 	})
 	if err != nil {
-		t.Fatalf("ping() error = %v", err)
+		t.Fatalf("prepareBedrockProbe() error = %v", err)
 	}
-	if latency <= 0 {
-		t.Fatalf("ping() latency = %d, want positive", latency)
+
+	sample, err := prepared.probe(context.Background(), 2*time.Second)
+	if err != nil {
+		t.Fatalf("prepared.probe() error = %v", err)
+	}
+	if sample.remote != server.addr {
+		t.Fatalf("remote = %s, want %s", sample.remote, server.addr)
 	}
 }
 

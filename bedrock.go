@@ -46,10 +46,6 @@ type bedrockPreparedProbe struct {
 	displayTarget netip.AddrPort
 }
 
-func newBedrockClient() pingClient {
-	return newPingClient()
-}
-
 func prepareBedrockProbe(ctx context.Context, client pingClient, target targetSpec, options pingOptions) (preparedProbe, error) {
 	client = client.withDefaults()
 	candidates, err := client.resolveBedrockCandidates(ctx, target, options)
@@ -96,44 +92,6 @@ func (p *bedrockPreparedProbe) observeSample(sample probeSample) {
 
 func (p *bedrockPreparedProbe) probe(ctx context.Context, timeout time.Duration) (probeSample, error) {
 	return pingBedrockCandidates(ctx, p.client, p.candidates, timeout)
-}
-
-func pingBedrock(target endpoint, timeout time.Duration, options pingOptions) (int, error) {
-	client := newPingClient().withDefaults()
-	targetSpec := bedrockTargetSpecFromEndpoint(target, options.addressFamily)
-
-	request, err := newPingRequest(targetSpec, timeout, options)
-	if err != nil {
-		return 0, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), request.timeout)
-	defer cancel()
-
-	prepared, err := prepareBedrockProbe(ctx, client, newTargetSpec(request.target.Host, request.target.Port, request.explicitPort), request.options)
-	if err != nil {
-		return 0, err
-	}
-
-	sample, err := prepared.probe(ctx, request.timeout)
-	if err != nil {
-		return 0, fmt.Errorf("failed to ping server %s: %w", request.target, err)
-	}
-
-	return durationToLatencyMs(sample.latency), nil
-}
-
-func bedrockTargetSpecFromEndpoint(target endpoint, family addressFamily) targetSpec {
-	defaultPort := defaultBedrockPort
-	if literal, ok := target.literalIP(); ok {
-		if literal.Is6() {
-			defaultPort = defaultBedrockPortV6
-		}
-	} else if family == addressFamily6 {
-		defaultPort = defaultBedrockPortV6
-	}
-
-	return newTargetSpec(target.Host, target.Port, target.Port != defaultPort)
 }
 
 func (c pingClient) resolveBedrockCandidates(ctx context.Context, target targetSpec, options pingOptions) ([]dialCandidate, error) {
@@ -279,14 +237,7 @@ func parseBedrockStatusResponse(payload []byte, expectedPingTime uint64) (bedroc
 		return bedrockStatus{}, fmt.Errorf("unexpected bedrock pong packet id: %d", payload[0])
 	}
 
-	pingTime := uint64(payload[1])<<56 |
-		uint64(payload[2])<<48 |
-		uint64(payload[3])<<40 |
-		uint64(payload[4])<<32 |
-		uint64(payload[5])<<24 |
-		uint64(payload[6])<<16 |
-		uint64(payload[7])<<8 |
-		uint64(payload[8])
+	pingTime := binary.BigEndian.Uint64(payload[1:9])
 	if pingTime != expectedPingTime {
 		return bedrockStatus{}, errors.New("bedrock pong ping time mismatch")
 	}
@@ -296,7 +247,7 @@ func parseBedrockStatusResponse(payload []byte, expectedPingTime uint64) (bedroc
 
 	nameLength := int(binary.BigEndian.Uint16(payload[33:35]))
 	if len(payload) < 35+nameLength {
-		return bedrockStatus{}, ioErrUnexpectedEOF("bedrock status payload")
+		return bedrockStatus{}, fmt.Errorf("bedrock status payload: unexpected EOF")
 	}
 	if len(payload) != 35+nameLength {
 		return bedrockStatus{}, fmt.Errorf("bedrock pong length mismatch: got %d want %d", len(payload), 35+nameLength)
@@ -350,8 +301,4 @@ func parseBedrockStatusText(statusText string) (bedrockStatus, error) {
 		status.GameMode = fields[8]
 	}
 	return status, nil
-}
-
-func ioErrUnexpectedEOF(where string) error {
-	return fmt.Errorf("%s: unexpected EOF", where)
 }

@@ -918,11 +918,6 @@ func TestFunctionCatalogDocumentsSemanticContracts(t *testing.T) {
 		t.Fatalf("empty SRV result with canceled context error = %v, want %v", err, context.Canceled)
 	}
 
-	const newBedrockClientDescription = "It creates the standard ping client for Bedrock."
-	if got := descriptions["main.newBedrockClient"]; got != newBedrockClientDescription {
-		t.Errorf("main.newBedrockClient description = %q, want %q", got, newBedrockClientDescription)
-	}
-
 	const randomUint64Description = "It gives an eight-byte zeroed buffer to the supplied callback. It ignores the returned byte count. It returns zero and wraps a callback error. Otherwise, it converts the full buffer to a big-endian 64-bit value."
 	if got := descriptions["main.randomUint64With"]; got != randomUint64Description {
 		t.Errorf("main.randomUint64With description = %q, want %q", got, randomUint64Description)

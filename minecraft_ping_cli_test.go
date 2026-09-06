@@ -122,7 +122,11 @@ func TestParseCLIConfigRejectsInvalidInputs(t *testing.T) {
 		{"-i", "9223372036.854777", "example.com"},
 		{"-w", "NaN", "example.com"},
 		{"-W", "NaN", "example.com"},
+		{"-W", "31", "example.com"},
 		{"-Z", "example.com"},
+		{"example.com:0"},
+		{"example.com:65536"},
+		{"exa\nmple.com"},
 	}
 
 	for _, args := range tests {

@@ -80,6 +80,13 @@ func defaultCLIRuntime() cliRuntime {
 	}
 }
 
+func prepareProbe(ctx context.Context, cfg cliConfig) (preparedProbe, error) {
+	if cfg.Edition == editionBedrock {
+		return prepareBedrockProbe(ctx, newPingClient(), cfg.Target, cfg.Options)
+	}
+	return prepareJavaProbe(ctx, newPingClient(), cfg.Target, cfg.Options)
+}
+
 func usageText() string {
 	return strings.TrimSpace(`
 Usage: minecraft-ping [options] destination
@@ -383,7 +390,6 @@ func parseSecondsDuration(raw string) (time.Duration, bool) {
 	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
 		return 0, false
 	}
-
 	seconds, ok := new(big.Rat).SetString(raw)
 	if !ok || seconds.Sign() <= 0 {
 		return 0, false
