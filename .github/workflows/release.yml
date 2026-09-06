@@ -164,6 +164,21 @@ jobs:
         id: goreleaser_version
         run: echo "value=$(bash scripts/read_goreleaser_version.sh)" >> "$GITHUB_OUTPUT"
 
+      - name: Remove stale draft releases for this tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # Later steps resolve the release by tag name. A stale draft with the
+          # same tag (for example one adopted by Release Drafter) would receive
+          # the uploads and get published instead of the fresh GoReleaser draft.
+          gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.draft and .tag_name == \"${GITHUB_REF_NAME}\") | .id" |
+          while read -r release_id; do
+            echo "Deleting stale draft release ${release_id} for ${GITHUB_REF_NAME}."
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
+          done
+
       - name: Build, sign, and stage draft release
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
