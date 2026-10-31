@@ -108,10 +108,10 @@
     "goimports": "v0.49.0",
     "go-mutesting": "v0.0.0-20251226130216-48d0401f00fb",
     "goreleaser": "v2.18.1",
-    "gosec": "v2.29.0",
+    "gosec": "v2.30.0",
     "govulncheck": "v1.7.0",
     "ineffassign": "v0.2.0",
-    "staticcheck": "v0.8.1",
+    "staticcheck": "v0.8.2",
     "syft": "v1.51.1"
   }
 }

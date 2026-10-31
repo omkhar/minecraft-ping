@@ -46,9 +46,9 @@ The main tool versions are:
 - actionlint `v1.7.12`
 - deadcode and goimports from `golang.org/x/tools` `v0.49.0`
 - govulncheck `v1.7.0`
-- gosec `v2.29.0`
+- gosec `v2.30.0`
 - gocritic `v0.15.0`
-- Staticcheck `v0.8.1`
+- Staticcheck `v0.8.2`
 - gitleaks `v8.30.1`
 - go-mutesting `v0.0.0-20251226130216-48d0401f00fb`
 
