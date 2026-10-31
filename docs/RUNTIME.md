@@ -44,7 +44,7 @@ The main tool versions are:
 - Cosign `v3.1.3`
 - Syft `v1.51.1`
 - actionlint `v1.7.12`
-- deadcode and goimports from `golang.org/x/tools` `v0.49.0`
+- deadcode and goimports from `golang.org/x/tools` `v0.52.0`
 - govulncheck `v1.7.0`
 - gosec `v2.30.0`
 - gocritic `v0.15.0`
