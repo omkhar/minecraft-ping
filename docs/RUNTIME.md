@@ -4,11 +4,11 @@ This document uses ASD-STE100 Simplified Technical English.
 
 ## Shipped Program
 
-The project uses Go 1.27.1.
+The project uses Go 1.27.3.
 GoReleaser sets `CGO_ENABLED=0` for release builds.
 Thus, a release binary does not require a separate Go installation.
 
-The staging container uses `golang:1.27.1-bookworm`.
+The staging container uses `golang:1.27.3-bookworm`.
 The Dockerfile pins the image digest.
 
 The Linux package smoke tests use these container releases:

@@ -9,6 +9,7 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Bumped the Go toolchain to 1.27.3 (go.mod and the staging container image). This removes the GO-2026-6604 standard-library finding that govulncheck reported on every pull request.
 - Made the release workflow delete stale same-tag draft releases before it stages assets. This prevents the publication of a leftover draft with old artifacts.
 - Removed the Dependabot auto-merge workflow and its bot-approval token. Branch rules now require green checks and signatures, not review counts, which fits a single-maintainer repository.
 
