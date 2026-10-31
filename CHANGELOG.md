@@ -9,6 +9,9 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Bumped the Go toolchain to 1.27.3 (go.mod and the staging container image). This removes the GO-2026-6604 finding that govulncheck reported on each pull request.
+- Bumped Staticcheck to v0.8.2 and gosec to v2.30.0. Older releases cannot read the export data that Go 1.27.2 and later write.
+- Bumped deadcode and goimports to `golang.org/x/tools` v0.52.0, and built gocritic against the same release for the same reason.
 - Made the release workflow delete stale same-tag draft releases before it stages assets. This prevents the publication of a leftover draft with old artifacts.
 - Removed the Dependabot auto-merge workflow and its bot-approval token. Branch rules now require green checks and signatures, not review counts, which fits a single-maintainer repository.
 
