@@ -14,6 +14,7 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 - Bumped deadcode and goimports to `golang.org/x/tools` v0.52.0, and built gocritic against the same release for the same reason.
 - Made the release workflow delete stale same-tag draft releases before it stages assets. This prevents the publication of a leftover draft with old artifacts.
 - Removed the Dependabot auto-merge workflow and its bot-approval token. Branch rules now require green checks and signatures, not review counts, which fits a single-maintainer repository.
+- Added a Dependabot auto-merge workflow. It does not approve pull requests. It enables squash auto-merge on a Dependabot pull request with a GitHub App token, so the branch rules still require green checks before the merge. The workflow does nothing until the App secrets exist.
 
 ## v2.0.8 - 2026-09-06
 
