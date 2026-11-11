@@ -87,6 +87,12 @@ nfpms:
 checksum:
   name_template: checksums.txt
 
+snapshot:
+  # The build-binaries workflow sets BUILD_VERSION to stamp a main build.
+  # Without it, snapshots keep the GoReleaser default version.
+  version_template: >-
+    {{ if index .Env "BUILD_VERSION" }}{{ .Env.BUILD_VERSION }}{{ else }}{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}{{ end }}
+
 source:
   enabled: true
   name_template: "{{ .ProjectName }}_{{ .Version }}_source"

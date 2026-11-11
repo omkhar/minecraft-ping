@@ -1,0 +1,311 @@
+name: Build Binaries
+
+# Publish a signed prerelease build of main each time the shipped inputs change.
+# Tagged vX.Y.Z releases stay on release.yml. These builds use build-* tags.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "cmd/**"
+      - "internal/**"
+      - "man/**"
+      - "LICENSE"
+      - "README.md"
+      - ".goreleaser.yml"
+      - ".github/goreleaser-version.txt"
+      - ".github/workflows/build-binaries.yml"
+      - "!**_test.go"
+  workflow_dispatch:
+  schedule:
+    # Weekly: rebuild only when setup-go resolves a newer Go patch release.
+    - cron: "23 7 * * 1"
+
+# A push may cancel an older push. Scheduled and manual runs wait in the queue
+# and never cancel a push build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+permissions: {}
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  build:
+    name: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+      toolchain: ${{ steps.gate.outputs.toolchain }}
+      upstream: ${{ steps.gate.outputs.upstream }}
+      version: ${{ steps.gate.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read the go.mod Go version
+        id: gomod
+        run: echo "version=$(awk '$1 == "go" { print $2; exit }' go.mod)" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ~${{ steps.gomod.outputs.version }}
+          check-latest: true
+          cache: false
+
+      - name: Decide whether to publish
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          toolchain="$(go env GOVERSION)"
+
+          upstream_tag="$(git tag --list 'v*' --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          upstream="${upstream_tag#v}"
+          upstream="${upstream:-0.0.0}"
+          # A push build uses the commit time. A scheduled or manual rebuild of
+          # the same commit uses the run time, so its version is higher and
+          # dpkg installs it.
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            timestamp="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M HEAD)"
+          else
+            timestamp="$(date -u +%Y%m%d%H%M)"
+          fi
+          version="${upstream}+git${timestamp}.g$(git rev-parse --short=7 HEAD)"
+
+          release_toolchain() {
+            grep -m 1 -oE '^Go toolchain: go[0-9][0-9A-Za-z.]*' | sed 's/^Go toolchain: //' || true
+          }
+
+          # The releases API lists the newest releases first.
+          latest_toolchain="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '[.[] | select((.draft | not) and (.tag_name | startswith("build-")))][0].body // ""' |
+            release_toolchain
+          )"
+          # Never delete or replace a published build-* release or tag.
+          target_exists=false
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/build-${version//+/%2B}" --jq '.id' >/dev/null 2>&1; then
+            target_exists=true
+          fi
+
+          publish=true
+          if [[ "${EVENT_NAME}" == "schedule" && -n "${latest_toolchain}" && "${latest_toolchain}" == "${toolchain}" ]]; then
+            publish=false
+            reason="The newest build already uses ${toolchain}."
+          elif [[ "${target_exists}" == "true" ]]; then
+            publish=false
+            reason="build-${version} already exists. This run does not replace it."
+          else
+            reason="Publish build-${version} with ${toolchain}."
+          fi
+
+          {
+            echo "publish=${publish}"
+            echo "toolchain=${toolchain}"
+            echo "upstream=${upstream}"
+            echo "version=${version}"
+          } >> "${GITHUB_OUTPUT}"
+          echo "${reason}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Run tests
+        if: steps.gate.outputs.publish == 'true'
+        run: go test -short -count=1 ./...
+
+      - name: Resolve GoReleaser version
+        if: steps.gate.outputs.publish == 'true'
+        id: goreleaser_version
+        run: echo "value=$(bash scripts/read_goreleaser_version.sh)" >> "${GITHUB_OUTPUT}"
+
+      - name: Build snapshot artifacts
+        if: steps.gate.outputs.publish == 'true'
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: ${{ steps.goreleaser_version.outputs.value }}
+          args: release --snapshot --clean --skip=sign
+        env:
+          BUILD_VERSION: ${{ steps.gate.outputs.version }}
+
+      - name: Smoke test archives
+        if: steps.gate.outputs.publish == 'true'
+        run: scripts/release_archive_smoke.sh dist
+
+      - name: Stage release assets
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.gate.outputs.version }}
+        shell: bash
+        run: |
+          mkdir -p staged
+          shopt -s nullglob
+
+          debs=(dist/*.deb)
+          if [[ "${#debs[@]}" -eq 0 ]]; then
+            echo "GoReleaser made no .deb packages." >&2
+            exit 1
+          fi
+          for deb in "${debs[@]}"; do
+            package="$(dpkg-deb -f "${deb}" Package)"
+            deb_version="$(dpkg-deb -f "${deb}" Version)"
+            arch="$(dpkg-deb -f "${deb}" Architecture)"
+            if [[ "${deb_version}" != "${VERSION}" ]]; then
+              echo "${deb} has Version ${deb_version}, want ${VERSION}." >&2
+              exit 1
+            fi
+            cp "${deb}" "staged/${package}_${deb_version}_${arch}.deb"
+          done
+
+          archives=()
+          for archive in "dist/minecraft-ping_${VERSION}"_*.tar.gz "dist/minecraft-ping_${VERSION}"_*.zip; do
+            [[ "${archive}" == *_source.tar.gz ]] && continue
+            archives+=("${archive}")
+          done
+          if [[ "${#archives[@]}" -eq 0 ]]; then
+            echo "GoReleaser made no platform archives." >&2
+            exit 1
+          fi
+          cp "${archives[@]}" staged/
+          ls -l staged
+
+      - name: Upload staged assets
+        if: steps.gate.outputs.publish == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-assets
+          path: staged
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  publish:
+    name: publish
+    needs: build
+    if: needs.build.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # Create the build-* tag and prerelease and upload its assets.
+      id-token: write # Mint the OIDC identity token used for keyless Cosign signing.
+    env:
+      CERT_IDENTITY: https://github.com/omkhar/minecraft-ping/.github/workflows/build-binaries.yml@refs/heads/main
+      CERT_ISSUER: https://token.actions.githubusercontent.com
+      GH_TOKEN: ${{ github.token }}
+      TAG: build-${{ needs.build.outputs.version }}
+      TOOLCHAIN: ${{ needs.build.outputs.toolchain }}
+      UPSTREAM: ${{ needs.build.outputs.upstream }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download staged assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: build-assets
+          path: assets
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.3
+
+      - name: Sign assets and write SHA256SUMS
+        shell: bash
+        working-directory: assets
+        run: |
+          shopt -s nullglob
+          debs=(*.deb)
+          if [[ "${#debs[@]}" -eq 0 ]]; then
+            echo "No .deb packages to sign." >&2
+            exit 1
+          fi
+          for deb in "${debs[@]}"; do
+            cosign sign-blob --yes --bundle "${deb}.sigstore.json" "${deb}"
+          done
+
+          sha256sum -- *.deb *.tar.gz *.zip *.sigstore.json > SHA256SUMS
+          cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+          cosign verify-blob \
+            --bundle "${debs[0]}.sigstore.json" \
+            --certificate-identity "${CERT_IDENTITY}" \
+            --certificate-oidc-issuer "${CERT_ISSUER}" \
+            "${debs[0]}"
+          cosign verify-blob \
+            --bundle SHA256SUMS.sigstore.json \
+            --certificate-identity "${CERT_IDENTITY}" \
+            --certificate-oidc-issuer "${CERT_ISSUER}" \
+            SHA256SUMS
+
+      - name: Remove stale build drafts
+        shell: bash
+        run: |
+          # Concurrency allows one run at a time, so each build-* draft is left
+          # over from a canceled run.
+          gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq '.[] | select(.draft and (.tag_name | startswith("build-"))) | .id' |
+          while read -r release_id; do
+            echo "Deleting stale draft release ${release_id}."
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
+          done
+
+      - name: Stage draft prerelease
+        shell: bash
+        run: |
+          {
+            echo "Automated build of \`main\` at ${GITHUB_SHA}."
+            echo
+            echo "Version: ${VERSION}"
+            echo "Go toolchain: ${TOOLCHAIN}"
+            echo "Upstream release: v${UPSTREAM}"
+            echo "Trigger: ${GITHUB_EVENT_NAME}"
+            echo
+            echo "Each .deb and SHA256SUMS has a Cosign keyless bundle (.sigstore.json)."
+            echo "Signer identity: ${CERT_IDENTITY}"
+          } > "${RUNNER_TEMP}/notes.md"
+
+          gh release create "${TAG}" assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${TAG}" \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
+            --draft \
+            --prerelease \
+            --latest=false
+
+      - name: Check the draft and publish it
+        shell: bash
+        run: |
+          draft_id="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+              --jq ".[] | select(.draft and .tag_name == \"${TAG}\") | .id"
+          )"
+          if [[ -z "${draft_id}" || "${draft_id}" == *$'\n'* ]]; then
+            echo "Expected exactly one draft release for ${TAG}, found: ${draft_id:-none}." >&2
+            exit 1
+          fi
+
+          # SHA256SUMS and release-puller use the local file names. Stop if
+          # GitHub changed an asset name during upload.
+          expected="$(cd assets && find . -maxdepth 1 -type f -printf '%f\n' | sort)"
+          uploaded="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${draft_id}/assets" --paginate --jq '.[].name' | sort)"
+          if [[ "${expected}" != "${uploaded}" ]]; then
+            echo "Uploaded asset names do not match the local files." >&2
+            diff <(echo "${expected}") <(echo "${uploaded}") >&2 || true
+            exit 1
+          fi
+
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" \
+            -F draft=false -F prerelease=true -f make_latest=false \
+            --jq '"Published \(.tag_name) at \(.html_url)"'

@@ -192,6 +192,16 @@ Maintainer procedure:
 3. Create a GitHub-verified signed, annotated `vX.Y.Z` tag at that exact `main` head.
 4. Push the tag to trigger the release workflow.
 
+Main branch builds:
+
+- The `Build Binaries` workflow publishes a signed `build-*` prerelease from `main`.
+- It runs when a merge changes a shipped file, when a maintainer starts it manually, and each week.
+- The weekly run rebuilds only when `setup-go` resolves a Go toolchain that differs from the newest build.
+- A scheduled or manual build uses the run time in its version, so a rebuild of the same commit gets a higher version.
+- Scheduled and manual runs wait for a running push build. They do not cancel it.
+- The workflow runs `go test -short ./...` before it builds and publishes.
+- Refer to [docs/release-verification.md](release-verification.md#main-branch-builds) for the assets and the verification steps.
+
 Release outputs:
 
 - The release workflow always publishes signed release artifacts.

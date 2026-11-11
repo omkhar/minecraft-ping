@@ -37,6 +37,12 @@ make package-smoke ARCH=amd64
 4. Push the tag to trigger the release workflow.
    The workflow stages assets in a draft release, runs archive, provenance, and SBOM validation, and publishes the draft only after those checks and uploads pass.
 
+## Main Branch Builds
+
+Do not tag main branch builds.
+The `Build Binaries` workflow publishes them from `main` without a maintainer step.
+They use `build-*` tags and stay prereleases, so the newest `vX.Y.Z` release stays the latest release.
+
 ## After Publication
 
 1. Inspect the GitHub release and confirm the expected archives, packages, checksums, SBOMs, and provenance assets are present.

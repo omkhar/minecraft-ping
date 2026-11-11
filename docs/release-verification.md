@@ -134,6 +134,41 @@ Each published artifact also has:
 The SBOMs describe artifact contents. They are useful for inventory, dependency review, and downstream compliance checks.
 They supplement artifact verification rather than replace it.
 
+## Main Branch Builds
+
+The `Build Binaries` workflow (`.github/workflows/build-binaries.yml`) publishes a prerelease when a merge to `main` changes a shipped file.
+It also runs each week and rebuilds when a new Go patch release is available.
+These builds do not replace the tagged releases. The newest `vX.Y.Z` release stays the latest release.
+
+- The tag is `build-<version>`.
+- The version is `<upstream>+git<YYYYMMDDHHMM>.g<sha7>`.
+  `<upstream>` is the newest `vX.Y.Z` tag without the `v`.
+  A push build uses the UTC commit time. A scheduled or manual build uses the UTC run time.
+  Thus a rebuild of the same commit gets a higher version.
+- The workflow does not delete or replace a published build.
+- Linux packages use `minecraft-ping_<version>_<arch>.deb`. The package `Version` field is the same as `<version>`.
+- Each build also contains the platform archives, `SHA256SUMS`, and a Cosign bundle for each `.deb` file and for `SHA256SUMS`.
+- The release notes contain a `Go toolchain: goX.Y.Z` line.
+- Builds do not contain SBOMs, GitHub provenance bundles, RPM or APK packages, or a source archive.
+
+To verify a build package and the checksum file:
+
+```bash
+identity='https://github.com/omkhar/minecraft-ping/.github/workflows/build-binaries.yml@refs/heads/main'
+issuer='https://token.actions.githubusercontent.com'
+cosign verify-blob \
+  --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity "$identity" \
+  --certificate-oidc-issuer "$issuer" \
+  SHA256SUMS
+cosign verify-blob \
+  --bundle minecraft-ping_<version>_amd64.deb.sigstore.json \
+  --certificate-identity "$identity" \
+  --certificate-oidc-issuer "$issuer" \
+  minecraft-ping_<version>_amd64.deb
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
 ## What Releases Contain
 
 Published release assets include:
