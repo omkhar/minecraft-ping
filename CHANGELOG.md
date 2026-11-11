@@ -9,6 +9,9 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Added the `Build Binaries` workflow. Each merge to `main` that changes a shipped file publishes a signed `build-<version>` prerelease. The prerelease contains Linux `.deb` packages, platform archives, `SHA256SUMS`, and Cosign bundles.
+- The build version is `<upstream>+git<YYYYMMDDHHMM>.g<sha7>`. A weekly run rebuilds when `setup-go` resolves a newer Go patch release. Tagged `vX.Y.Z` releases do not change.
+- GoReleaser snapshots use the `BUILD_VERSION` environment variable as the version when it has a value.
 - Removed copied Dependabot-managed values from `docs/runtime-versions.json`. The runtime tests now read these values from `go.mod`, the staging Dockerfile, and the workflow `uses:` lines. They still require a full commit SHA and a full release tag on each action. A Dependabot update no longer needs a manual inventory edit.
 - Bumped the Go toolchain to 1.27.3 (go.mod and the staging container image). This removes the GO-2026-6604 finding that govulncheck reported on each pull request.
 - Bumped Staticcheck to v0.8.2 and gosec to v2.30.0. Older releases cannot read the export data that Go 1.27.2 and later write.

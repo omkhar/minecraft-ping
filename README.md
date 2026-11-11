@@ -32,6 +32,9 @@ go build -o minecraft-ping .
 
 The project publishes signed release archives and Linux packages on [GitHub Releases](https://github.com/omkhar/minecraft-ping/releases).
 Linux packages install the `minecraft-ping(1)` man page, and release archives ship the same source at `man/minecraft-ping.1`.
+Each merge to `main` that changes a shipped file also publishes a signed `build-*` prerelease.
+The newest `vX.Y.Z` release stays the latest release.
+Refer to [docs/release-verification.md](docs/release-verification.md#main-branch-builds) for the build version format and the verification steps.
 
 ## Quick Start
 

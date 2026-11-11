@@ -8,10 +8,12 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -605,6 +607,88 @@ func TestSupportedDistributionSurfaceMatchesGoReleaser(t *testing.T) {
 		if !strings.Contains(releaseWorkflow, required) {
 			t.Errorf("release workflow does not contain %q", required)
 		}
+	}
+}
+
+// TestBuildBinariesWorkflowKeepsBuildReleaseContract protects the main-branch
+// build contract that host tools use to find, verify, and install builds.
+func TestBuildBinariesWorkflowKeepsBuildReleaseContract(t *testing.T) {
+	t.Parallel()
+
+	content := mustReadDocumentationFile(t, ".github/workflows/build-binaries.yml")
+	var workflow struct {
+		On struct {
+			Push struct {
+				Branches []string `yaml:"branches"`
+				Paths    []string `yaml:"paths"`
+			} `yaml:"push"`
+			Schedule []struct {
+				Cron string `yaml:"cron"`
+			} `yaml:"schedule"`
+		} `yaml:"on"`
+		Concurrency struct {
+			CancelInProgress bool `yaml:"cancel-in-progress"`
+		} `yaml:"concurrency"`
+		Jobs map[string]struct {
+			Permissions map[string]string `yaml:"permissions"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(content), &workflow); err != nil {
+		t.Fatal(err)
+	}
+	if err := compareExactSets([]string{"main"}, workflow.On.Push.Branches); err != nil {
+		t.Errorf("push branches: %v", err)
+	}
+	for _, path := range []string{"**.go", "go.mod", "go.sum", "man/**", ".goreleaser.yml", "!**_test.go"} {
+		if !slices.Contains(workflow.On.Push.Paths, path) {
+			t.Errorf("push paths do not contain %q", path)
+		}
+	}
+	var triggers struct {
+		On map[string]any `yaml:"on"`
+	}
+	if err := yaml.Unmarshal([]byte(content), &triggers); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := triggers.On["workflow_dispatch"]; !ok || len(workflow.On.Schedule) != 1 {
+		t.Error("workflow must run on workflow_dispatch and on one weekly schedule")
+	}
+	if !workflow.Concurrency.CancelInProgress {
+		t.Error("workflow concurrency must cancel in-progress runs")
+	}
+	for job, want := range map[string]map[string]string{
+		"build":   {"contents": "read"},
+		"publish": {"contents": "write", "id-token": "write"},
+	} {
+		if got := workflow.Jobs[job].Permissions; !maps.Equal(got, want) {
+			t.Errorf("job %s permissions = %v, want %v", job, got, want)
+		}
+	}
+	for _, required := range []string{
+		"check-latest: true",
+		"go-version: ~${{ steps.gomod.outputs.version }}",
+		"go test -short -count=1 ./...",
+		`version="${upstream}+git${timestamp}.g$(git rev-parse --short=7 HEAD)"`,
+		"Go toolchain: ${TOOLCHAIN}",
+		`cp "${deb}" "staged/${package}_${deb_version}_${arch}.deb"`,
+		"> SHA256SUMS",
+		`cosign sign-blob --yes --bundle "${deb}.sigstore.json" "${deb}"`,
+		"cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS",
+		"cosign verify-blob",
+		"CERT_IDENTITY: https://github.com/omkhar/minecraft-ping/.github/workflows/build-binaries.yml@refs/heads/main",
+		`--target "${GITHUB_SHA}"`,
+		"--prerelease",
+		"--latest=false",
+		"persist-credentials: false",
+	} {
+		if !strings.Contains(content, required) {
+			t.Errorf("build-binaries workflow does not contain %q", required)
+		}
+	}
+
+	goreleaser := mustReadDocumentationFile(t, ".goreleaser.yml")
+	if !strings.Contains(goreleaser, `{{ .Env.BUILD_VERSION }}`) {
+		t.Error(".goreleaser.yml snapshot version does not use BUILD_VERSION")
 	}
 }
 
