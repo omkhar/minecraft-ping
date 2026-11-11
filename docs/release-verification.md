@@ -142,7 +142,10 @@ These builds do not replace the tagged releases. The newest `vX.Y.Z` release sta
 
 - The tag is `build-<version>`.
 - The version is `<upstream>+git<YYYYMMDDHHMM>.g<sha7>`.
-  `<upstream>` is the newest `vX.Y.Z` tag without the `v`. The time is the UTC commit time.
+  `<upstream>` is the newest `vX.Y.Z` tag without the `v`.
+  A push build uses the UTC commit time. A scheduled or manual build uses the UTC run time.
+  Thus a rebuild of the same commit gets a higher version.
+- The workflow does not delete or replace a published build.
 - Linux packages use `minecraft-ping_<version>_<arch>.deb`. The package `Version` field is the same as `<version>`.
 - Each build also contains the platform archives, `SHA256SUMS`, and a Cosign bundle for each `.deb` file and for `SHA256SUMS`.
 - The release notes contain a `Go toolchain: goX.Y.Z` line.

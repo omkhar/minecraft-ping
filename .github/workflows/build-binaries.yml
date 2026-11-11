@@ -24,9 +24,11 @@ on:
     # Weekly: rebuild only when setup-go resolves a newer Go patch release.
     - cron: "23 7 * * 1"
 
+# A push may cancel an older push. Scheduled and manual runs wait in the queue
+# and never cancel a push build.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 permissions: {}
 
@@ -42,7 +44,6 @@ jobs:
       contents: read
     outputs:
       publish: ${{ steps.gate.outputs.publish }}
-      replace: ${{ steps.gate.outputs.replace }}
       toolchain: ${{ steps.gate.outputs.toolchain }}
       upstream: ${{ steps.gate.outputs.upstream }}
       version: ${{ steps.gate.outputs.version }}
@@ -75,7 +76,14 @@ jobs:
           upstream_tag="$(git tag --list 'v*' --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
           upstream="${upstream_tag#v}"
           upstream="${upstream:-0.0.0}"
-          timestamp="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M HEAD)"
+          # A push build uses the commit time. A scheduled or manual rebuild of
+          # the same commit uses the run time, so its version is higher and
+          # dpkg installs it.
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            timestamp="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M HEAD)"
+          else
+            timestamp="$(date -u +%Y%m%d%H%M)"
+          fi
           version="${upstream}+git${timestamp}.g$(git rev-parse --short=7 HEAD)"
 
           release_toolchain() {
@@ -88,31 +96,25 @@ jobs:
               --jq '[.[] | select((.draft | not) and (.tag_name | startswith("build-")))][0].body // ""' |
             release_toolchain
           )"
-          target_toolchain=""
+          # Never delete or replace a published build-* release or tag.
           target_exists=false
-          if target_body="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/build-${version//+/%2B}" --jq '.body // ""' 2>/dev/null)"; then
+          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/build-${version//+/%2B}" --jq '.id' >/dev/null 2>&1; then
             target_exists=true
-            target_toolchain="$(release_toolchain <<<"${target_body}")"
           fi
 
           publish=true
-          replace=false
           if [[ "${EVENT_NAME}" == "schedule" && -n "${latest_toolchain}" && "${latest_toolchain}" == "${toolchain}" ]]; then
             publish=false
             reason="The newest build already uses ${toolchain}."
-          elif [[ "${target_exists}" == "true" && "${target_toolchain}" == "${toolchain}" ]]; then
-            publish=false
-            reason="build-${version} already exists with ${toolchain}."
           elif [[ "${target_exists}" == "true" ]]; then
-            replace=true
-            reason="Replace build-${version} (${target_toolchain:-unknown} to ${toolchain})."
+            publish=false
+            reason="build-${version} already exists. This run does not replace it."
           else
             reason="Publish build-${version} with ${toolchain}."
           fi
 
           {
             echo "publish=${publish}"
-            echo "replace=${replace}"
             echo "toolchain=${toolchain}"
             echo "upstream=${upstream}"
             echo "version=${version}"
@@ -201,7 +203,6 @@ jobs:
       CERT_IDENTITY: https://github.com/omkhar/minecraft-ping/.github/workflows/build-binaries.yml@refs/heads/main
       CERT_ISSUER: https://token.actions.githubusercontent.com
       GH_TOKEN: ${{ github.token }}
-      REPLACE: ${{ needs.build.outputs.replace }}
       TAG: build-${{ needs.build.outputs.version }}
       TOOLCHAIN: ${{ needs.build.outputs.toolchain }}
       UPSTREAM: ${{ needs.build.outputs.upstream }}
@@ -258,17 +259,6 @@ jobs:
             echo "Deleting stale draft release ${release_id}."
             gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
           done
-
-      - name: Remove the build that this run replaces
-        if: env.REPLACE == 'true'
-        shell: bash
-        run: |
-          # A toolchain rebuild of the same commit keeps the same version.
-          encoded_tag="${TAG//+/%2B}"
-          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${encoded_tag}" --jq '.id')"
-          echo "Replacing release ${release_id} (${TAG}) with a build that uses ${TOOLCHAIN}."
-          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
-          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${encoded_tag}"
 
       - name: Stage draft prerelease
         shell: bash

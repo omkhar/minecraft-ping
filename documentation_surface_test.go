@@ -627,7 +627,7 @@ func TestBuildBinariesWorkflowKeepsBuildReleaseContract(t *testing.T) {
 			} `yaml:"schedule"`
 		} `yaml:"on"`
 		Concurrency struct {
-			CancelInProgress bool `yaml:"cancel-in-progress"`
+			CancelInProgress string `yaml:"cancel-in-progress"`
 		} `yaml:"concurrency"`
 		Jobs map[string]struct {
 			Permissions map[string]string `yaml:"permissions"`
@@ -653,8 +653,9 @@ func TestBuildBinariesWorkflowKeepsBuildReleaseContract(t *testing.T) {
 	if _, ok := triggers.On["workflow_dispatch"]; !ok || len(workflow.On.Schedule) != 1 {
 		t.Error("workflow must run on workflow_dispatch and on one weekly schedule")
 	}
-	if !workflow.Concurrency.CancelInProgress {
-		t.Error("workflow concurrency must cancel in-progress runs")
+	// Only a push may cancel an older push. Scheduled and manual runs wait.
+	if got, want := workflow.Concurrency.CancelInProgress, "${{ github.event_name == 'push' }}"; got != want {
+		t.Errorf("workflow cancel-in-progress = %q, want %q", got, want)
 	}
 	for job, want := range map[string]map[string]string{
 		"build":   {"contents": "read"},
@@ -669,6 +670,12 @@ func TestBuildBinariesWorkflowKeepsBuildReleaseContract(t *testing.T) {
 		"go-version: ~${{ steps.gomod.outputs.version }}",
 		"go test -short -count=1 ./...",
 		`version="${upstream}+git${timestamp}.g$(git rev-parse --short=7 HEAD)"`,
+		// A push uses the commit time. A scheduled or manual rebuild uses the
+		// run time, so dpkg sees a higher version for the same commit.
+		`if [[ "${EVENT_NAME}" == "push" ]]; then`,
+		`timestamp="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M HEAD)"`,
+		`timestamp="$(date -u +%Y%m%d%H%M)"`,
+		`reason="build-${version} already exists. This run does not replace it."`,
 		"Go toolchain: ${TOOLCHAIN}",
 		`cp "${deb}" "staged/${package}_${deb_version}_${arch}.deb"`,
 		"> SHA256SUMS",
@@ -683,6 +690,13 @@ func TestBuildBinariesWorkflowKeepsBuildReleaseContract(t *testing.T) {
 	} {
 		if !strings.Contains(content, required) {
 			t.Errorf("build-binaries workflow does not contain %q", required)
+		}
+	}
+
+	// The workflow must never delete or replace a published build release or tag.
+	for _, forbidden := range []string{"git/refs/tags", "gh release delete", "--clobber", "replace="} {
+		if strings.Contains(content, forbidden) {
+			t.Errorf("build-binaries workflow contains %q", forbidden)
 		}
 	}
 
