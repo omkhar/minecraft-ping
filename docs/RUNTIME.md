@@ -4,12 +4,12 @@ This document uses ASD-STE100 Simplified Technical English.
 
 ## Shipped Program
 
-The project uses Go 1.27.3.
+The `go` line in [`go.mod`](../go.mod) sets the Go version.
 GoReleaser sets `CGO_ENABLED=0` for release builds.
 Thus, a release binary does not require a separate Go installation.
 
-The staging container uses `golang:1.27.3-bookworm`.
-The Dockerfile pins the image digest.
+The staging container uses the `golang` image.
+[`docker/staging-minecraft.Dockerfile`](../docker/staging-minecraft.Dockerfile) pins the image tag and digest.
 
 The Linux package smoke tests use these container releases:
 
@@ -52,10 +52,17 @@ The main tool versions are:
 - gitleaks `v8.30.1`
 - go-mutesting `v0.0.0-20251226130216-48d0401f00fb`
 
-The machine-readable source is [`docs/runtime-versions.json`](runtime-versions.json).
-Its tests check the Go version, staging image, package-smoke images, runner
-labels, action SHAs, action tags, and tool versions.
+The machine-readable inventory is [`docs/runtime-versions.json`](runtime-versions.json).
+It lists the staging image name, package-smoke images, runner labels, action names, and tool versions.
 CI fails if these values do not agree with the repository.
+
+The inventory does not copy values that Dependabot changes.
+The tests read the Go version from `go.mod`.
+The tests read the staging image tag and digest from the Dockerfile.
+The tests read each action SHA and release tag from its workflow `uses:` line.
+The tests require a full commit SHA and a full `vX.Y.Z` tag comment on each `uses:` line.
+All actions from one repository must use the same SHA and tag.
+Thus, a Dependabot update does not need a manual inventory change.
 
 ## Update Procedure
 
