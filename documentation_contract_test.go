@@ -10,23 +10,21 @@ import (
 	"testing"
 )
 
-type documentedRuntime struct {
-	Version string `json:"version"`
-	SHA     string `json:"sha"`
-}
-
 type documentedContainer struct {
 	Image  string `json:"image"`
 	Tag    string `json:"tag"`
 	Digest string `json:"digest"`
 }
 
+// runtimeManifest lists the runtime inventory. It does not repeat values that
+// Dependabot updates: go.mod has the Go version, the staging Dockerfile has the
+// image tag and digest, and each workflow "uses:" line has the action SHA and
+// release tag. The tests read those values from their source files.
 type runtimeManifest struct {
-	Go                     string                         `json:"go"`
-	StagingContainer       documentedContainer            `json:"staging_container"`
+	StagingImage           string                         `json:"staging_image"`
 	PackageSmokeContainers map[string]documentedContainer `json:"package_smoke_containers"`
 	Runners                []string                       `json:"runners"`
-	Actions                map[string]documentedRuntime   `json:"actions"`
+	Actions                []string                       `json:"actions"`
 	Tools                  map[string]string              `json:"tools"`
 }
 
@@ -64,36 +62,38 @@ var stagingBuildContainerPattern = regexp.MustCompile(
 	`(?m)^FROM ([^:@\s]+):([^@\s]+)@sha256:([0-9a-f]{64}) AS build\r?$`,
 )
 
+var (
+	goVersionPattern       = regexp.MustCompile(`^1\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$`)
+	releaseTagPattern      = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
+	actionCommitSHAPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+)
+
 func TestRuntimeManifestRejectsMutableOrMalformedPins(t *testing.T) {
-	validSHA := "3d3c42e5aac5ba805825da76410c181273ba90b1"
-	validDigest := "1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651"
 	for name, manifest := range map[string]runtimeManifest{
 		"mutable tool": {
-			Go:    "1.26.5",
-			Tools: map[string]string{"actionlint": "latest"},
+			StagingImage: "golang",
+			Tools:        map[string]string{"actionlint": "latest"},
 		},
-		"mutable action": {
-			Go:      "1.26.5",
-			Actions: map[string]documentedRuntime{"actions/checkout": {Version: "main", SHA: validSHA}},
+		"action with ref": {
+			StagingImage: "golang",
+			Actions:      []string{"actions/checkout@v7"},
 		},
-		"invalid action SHA": {
-			Go:      "1.26.5",
-			Actions: map[string]documentedRuntime{"actions/checkout": {Version: "v7.0.1", SHA: "v7"}},
+		"duplicate action": {
+			StagingImage: "golang",
+			Actions:      []string{"actions/checkout", "actions/checkout"},
 		},
-		"invalid container digest": {
-			Go:               "1.26.5",
-			StagingContainer: documentedContainer{Image: "golang", Tag: "1.26.5-bookworm", Digest: "latest"},
+		"staging image with tag": {
+			StagingImage: "golang:latest",
 		},
 		"duplicate runner": {
-			Go:      "1.26.5",
-			Runners: []string{"ubuntu-24.04", "ubuntu-24.04"},
+			StagingImage: "golang",
+			Runners:      []string{"ubuntu-24.04", "ubuntu-24.04"},
 		},
 		"valid pins": {
-			Go:               "1.26.5",
-			StagingContainer: documentedContainer{Image: "golang", Tag: "1.26.5-bookworm", Digest: validDigest},
-			Runners:          []string{"ubuntu-24.04"},
-			Actions:          map[string]documentedRuntime{"actions/checkout": {Version: "v7.0.1", SHA: validSHA}},
-			Tools:            map[string]string{"actionlint": "v1.7.12"},
+			StagingImage: "golang",
+			Runners:      []string{"ubuntu-24.04"},
+			Actions:      []string{"actions/checkout"},
+			Tools:        map[string]string{"actionlint": "v1.7.12"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -103,6 +103,59 @@ func TestRuntimeManifestRejectsMutableOrMalformedPins(t *testing.T) {
 			}
 			if name != "valid pins" && err == nil {
 				t.Fatal("validateRuntimeManifest accepted a mutable or malformed pin")
+			}
+		})
+	}
+}
+
+func TestWorkflowActionPinsRejectMutableOrInconsistentPins(t *testing.T) {
+	sha := "3d3c42e5aac5ba805825da76410c181273ba90b1"
+	otherSHA := "24c54180a607b1449ed407dd24f251e4e9147c8d"
+	for name, test := range map[string]struct {
+		actions []parsedWorkflowAction
+		valid   bool
+	}{
+		"valid pins": {
+			actions: []parsedWorkflowAction{
+				{name: "actions/checkout", sha: sha, version: "v7.0.1"},
+				{name: "actions/checkout", sha: sha, version: "v7.0.1"},
+				{name: "github/codeql-action/init", sha: otherSHA, version: "v4.38.3"},
+				{name: "github/codeql-action/analyze", sha: otherSHA, version: "v4.38.3"},
+			},
+			valid: true,
+		},
+		"missing release tag": {
+			actions: []parsedWorkflowAction{{name: "actions/checkout", sha: sha}},
+		},
+		"mutable release tag": {
+			actions: []parsedWorkflowAction{{name: "actions/checkout", sha: sha, version: "v7"}},
+		},
+		"branch release tag": {
+			actions: []parsedWorkflowAction{{name: "actions/checkout", sha: sha, version: "main"}},
+		},
+		"non-SHA ref": {
+			actions: []parsedWorkflowAction{{name: "actions/checkout", sha: "v7.0.1", version: "v7.0.1"}},
+		},
+		"two SHAs for one repository": {
+			actions: []parsedWorkflowAction{
+				{name: "github/codeql-action/init", sha: otherSHA, version: "v4.38.3"},
+				{name: "github/codeql-action/analyze", sha: sha, version: "v4.38.3"},
+			},
+		},
+		"two tags for one SHA": {
+			actions: []parsedWorkflowAction{
+				{name: "actions/checkout", sha: sha, version: "v7.0.1"},
+				{name: "actions/checkout", sha: sha, version: "v7.0.2"},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := validateWorkflowActionPins(test.actions)
+			if test.valid && err != nil {
+				t.Fatal(err)
+			}
+			if !test.valid && err == nil {
+				t.Fatal("validateWorkflowActionPins accepted a mutable or inconsistent pin")
 			}
 		})
 	}
@@ -178,18 +231,19 @@ func TestRuntimeManifestMatchesRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	goVersion := goDirectiveVersion(mustReadDocumentationFile(t, "go.mod"))
-	if goVersion != manifest.Go {
-		t.Fatalf("go.mod version = %q, manifest version = %q", goVersion, manifest.Go)
+	// go.mod is the source of the Go version. Dependabot can change it.
+	if goVersion := goDirectiveVersion(mustReadDocumentationFile(t, "go.mod")); !goVersionPattern.MatchString(goVersion) {
+		t.Fatalf("go.mod has an invalid Go version %q", goVersion)
 	}
 
+	// The Dockerfile is the source of the staging tag and digest. Dependabot can change them.
 	dockerfile := mustReadDocumentationFile(t, "docker/staging-minecraft.Dockerfile")
 	container := stagingBuildContainerPattern.FindStringSubmatch(dockerfile)
-	if len(container) != 4 {
+	if len(container) != 4 || container[2] == "latest" {
 		t.Fatal("staging Dockerfile does not use a pinned build container")
 	}
-	if container[1] != manifest.StagingContainer.Image || container[2] != manifest.StagingContainer.Tag || container[3] != manifest.StagingContainer.Digest {
-		t.Fatalf("staging container = %s:%s@sha256:%s, manifest = %+v", container[1], container[2], container[3], manifest.StagingContainer)
+	if container[1] != manifest.StagingImage {
+		t.Fatalf("staging container image = %s, manifest = %s", container[1], manifest.StagingImage)
 	}
 
 	packageSmoke := mustReadDocumentationFile(t, "scripts/release_linux_package_smoke.sh")
@@ -201,8 +255,13 @@ func TestRuntimeManifestMatchesRepository(t *testing.T) {
 	for _, runner := range manifest.Runners {
 		allowedRunners[runner] = true
 	}
+	documentedActions := make(map[string]bool, len(manifest.Actions))
+	for _, action := range manifest.Actions {
+		documentedActions[action] = true
+	}
 	seenRunners := make(map[string]bool)
 	seenActions := make(map[string]bool)
+	var workflowPins []parsedWorkflowAction
 	var workflowContent strings.Builder
 	workflowRoot := filepath.Join(".github", "workflows")
 	err := filepath.WalkDir(workflowRoot, func(path string, entry os.DirEntry, walkErr error) error {
@@ -218,19 +277,13 @@ func TestRuntimeManifestMatchesRepository(t *testing.T) {
 			return nil
 		}
 		for _, action := range actions {
-			pin, ok := manifest.Actions[action.name]
-			if !ok {
+			if !documentedActions[action.name] {
 				t.Errorf("%s uses undocumented action %s", filepath.Base(path), action.name)
 				continue
 			}
 			seenActions[action.name] = true
-			if action.sha != pin.SHA {
-				t.Errorf("%s uses %s@%s, want %s", filepath.Base(path), action.name, action.sha, pin.SHA)
-			}
-			if action.version != pin.Version {
-				t.Errorf("%s labels %s as %q, want %q", filepath.Base(path), action.name, action.version, pin.Version)
-			}
 		}
+		workflowPins = append(workflowPins, actions...)
 
 		for _, runner := range runners {
 			if !allowedRunners[runner] {
@@ -244,7 +297,10 @@ func TestRuntimeManifestMatchesRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for action := range manifest.Actions {
+	if err := validateWorkflowActionPins(workflowPins); err != nil {
+		t.Error(err)
+	}
+	for _, action := range manifest.Actions {
 		if !seenActions[action] {
 			t.Errorf("documented action %s is not used", action)
 		}
@@ -258,16 +314,16 @@ func TestRuntimeManifestMatchesRepository(t *testing.T) {
 }
 
 func validateRuntimeManifest(manifest runtimeManifest) error {
-	semverPattern := regexp.MustCompile(`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
-	if !semverPattern.MatchString(manifest.Go) || strings.HasPrefix(manifest.Go, "v") {
-		return fmt.Errorf("runtime manifest has an invalid Go version %q", manifest.Go)
+	if manifest.StagingImage == "" || strings.ContainsAny(manifest.StagingImage, ":@ \t") {
+		return fmt.Errorf("runtime manifest has an invalid staging image name %q", manifest.StagingImage)
 	}
-	shaPattern := regexp.MustCompile(`^[0-9a-f]{40}$`)
-	for name, action := range manifest.Actions {
-		if name == "" || !semverPattern.MatchString(action.Version) ||
-			!strings.HasPrefix(action.Version, "v") || !shaPattern.MatchString(action.SHA) {
-			return fmt.Errorf("runtime manifest action %q has a mutable or malformed pin", name)
+	semverPattern := regexp.MustCompile(`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
+	seenActions := make(map[string]bool, len(manifest.Actions))
+	for _, name := range manifest.Actions {
+		if name == "" || seenActions[name] || strings.ContainsAny(name, "@ \t") {
+			return fmt.Errorf("runtime manifest has an empty, duplicate, or versioned action %q", name)
 		}
+		seenActions[name] = true
 	}
 	for name, version := range manifest.Tools {
 		if name == "" || !semverPattern.MatchString(version) {
@@ -281,9 +337,6 @@ func validateRuntimeManifest(manifest runtimeManifest) error {
 		}
 		seenRunners[runner] = true
 	}
-	if err := validateRuntimeContainer("staging", manifest.StagingContainer); err != nil {
-		return err
-	}
 	for name, container := range manifest.PackageSmokeContainers {
 		if name == "" {
 			return fmt.Errorf("runtime manifest has an unnamed package-smoke container")
@@ -291,6 +344,33 @@ func validateRuntimeManifest(manifest runtimeManifest) error {
 		if err := validateRuntimeContainer(name, container); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// validateWorkflowActionPins checks the pins on the workflow "uses:" lines.
+// Each action must use a full commit SHA and a full release tag comment. All
+// actions from one repository must use the same SHA and the same tag.
+func validateWorkflowActionPins(actions []parsedWorkflowAction) error {
+	type pin struct{ sha, version string }
+	repositoryPins := make(map[string]pin)
+	for _, action := range actions {
+		if !actionCommitSHAPattern.MatchString(action.sha) {
+			return fmt.Errorf("%s uses non-SHA ref %q", action.name, action.sha)
+		}
+		if !releaseTagPattern.MatchString(action.version) {
+			return fmt.Errorf("%s@%s has release tag comment %q, want a full vX.Y.Z tag", action.name, action.sha, action.version)
+		}
+		parts := strings.SplitN(action.name, "/", 3)
+		if len(parts) < 2 {
+			return fmt.Errorf("action %q has no owner/repository name", action.name)
+		}
+		repository := parts[0] + "/" + parts[1]
+		current := pin{sha: action.sha, version: action.version}
+		if previous, ok := repositoryPins[repository]; ok && previous != current {
+			return fmt.Errorf("%s is pinned as %s # %s and %s # %s", repository, previous.sha, previous.version, current.sha, current.version)
+		}
+		repositoryPins[repository] = current
 	}
 	return nil
 }
@@ -393,7 +473,8 @@ func checkToolVersions(t *testing.T, tools map[string]string, workflows string) 
 func TestRuntimeDocumentationCoversManifest(t *testing.T) {
 	runtimeDoc := mustReadDocumentationFile(t, "docs/RUNTIME.md")
 	for _, statement := range []string{
-		"Go 1.27.3",
+		"`go.mod`",
+		"docker/staging-minecraft.Dockerfile",
 		"ubuntu-24.04-arm",
 		"windows-11-arm",
 		"docs/runtime-versions.json",
