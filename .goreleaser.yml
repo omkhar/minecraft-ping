@@ -2,6 +2,12 @@ version: 2
 
 project_name: minecraft-ping
 
+git:
+  # build-binaries.yml tags every main build as build-<version>. Only
+  # vX.Y.Z tags mark releases, so skip build tags when finding the last one.
+  ignore_tags:
+    - "build-*"
+
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
 
@@ -89,9 +95,11 @@ checksum:
 
 snapshot:
   # The build-binaries workflow sets BUILD_VERSION to stamp a main build.
-  # Without it, snapshots keep the GoReleaser default version.
+  # Without it, snapshots use the last vX.Y.Z version. A main commit that
+  # already has a build-* tag reports that tag here, so drop its prefix and
+  # build stamp to keep the version starting with a digit for dpkg and rpm.
   version_template: >-
-    {{ if index .Env "BUILD_VERSION" }}{{ .Env.BUILD_VERSION }}{{ else }}{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}{{ end }}
+    {{ if index .Env "BUILD_VERSION" }}{{ .Env.BUILD_VERSION }}{{ else }}{{ index (split (trimprefix .Version "build-") "+") 0 }}-SNAPSHOT-{{ .ShortCommit }}{{ end }}
 
 source:
   enabled: true
