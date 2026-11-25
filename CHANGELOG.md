@@ -9,6 +9,7 @@ Earlier tags exist in git history, but the changelog starts with the current pub
 
 ## Unreleased
 
+- Changed the `Label Pull Requests` workflow trigger from `pull_request_target` to `pull_request`. GitHub blocks `pull_request_target` in public repositories from 2026-12-02 unless a repository policy allows it. The labeler does not need it. Pull requests from this repository and from Dependabot still get labels. The workflow skips fork pull requests. A fork pull request gets a token that can only read.
 - Added the `Build Binaries` workflow. Each merge to `main` that changes a shipped file publishes a signed `build-<version>` prerelease. The prerelease contains Linux `.deb` packages, platform archives, `SHA256SUMS`, and Cosign bundles.
 - The build version is `<upstream>+git<YYYYMMDDHHMM>.g<sha7>`. A push build uses the commit time. A scheduled or manual build uses the run time, so a rebuild gets a higher version.
 - A weekly run rebuilds when `setup-go` resolves a newer Go patch release. Scheduled and manual runs do not cancel a push build. Tagged `vX.Y.Z` releases do not change.
