@@ -1,8 +1,7 @@
 name: Label Pull Requests
 
 on:
-  pull_request_target:
-    # zizmor: ignore[dangerous-triggers] This workflow applies labels through the GitHub API only and never checks out or executes PR code.
+  pull_request:
     branches: ["main"]
 
 permissions: {}
@@ -14,6 +13,8 @@ concurrency:
 jobs:
   labeler:
     name: labeler
+    # A fork pull request gets a read-only token, so the labeler cannot write labels. Skip it.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     permissions:
       contents: read # Read repository metadata and the labeler configuration.
